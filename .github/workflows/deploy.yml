@@ -1,0 +1,77 @@
+name: deploy
+
+# Builds the graph data from the TakasakiInfo v1 files on the CDN and publishes the site to
+# GitHub Pages. Pushes and manual runs always deploy; the daily run deploys only when the
+# data version on the CDN differs from the one on the live site. TakasakiInfo can also trigger
+# a run right after its own deploy with a repository_dispatch of type `takasaki-data-updated`.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [takasaki-data-updated]
+  schedule:
+    - cron: "17 21 * * *" # 06:17 KST
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  TAKASAKI_V1: https://d1zzovwupaegwb.cloudfront.net/data/v1/
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.compare.outputs.build }}
+    steps:
+      - id: pages
+        uses: actions/configure-pages@v5
+      - id: compare
+        env:
+          EVENT: ${{ github.event_name }}
+          SITE: ${{ steps.pages.outputs.base_url }}
+        run: |
+          latest=$(curl -fsSL "${TAKASAKI_V1%/v1/}/version.json" | jq -r '"\(.sha) \(.dbLastUpdate)"')
+          live=$(curl -fsSL "$SITE/data/meta.json" | jq -r '"\(.sha) \(.dbLastUpdate)"' || echo "none")
+          echo "data on the CDN: $latest"
+          echo "data on the site: $live"
+          if [ "$EVENT" != "schedule" ] || [ "$latest" != "$live" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build # data from the CDN, then typecheck and bundle
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
