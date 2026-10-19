@@ -4,7 +4,7 @@ import type {
   ArtistDetail, CharacterDetail, ConcertDetail, CreditRef, Detail, DetailFile, GNode, LinkRef, PerformerRef,
   PersonDetail, ProjectDetail, ReleaseDetail, VenueDetail, WorkDetail,
 } from "../../../shared/graph";
-import { NODE_TYPES } from "../../../shared/graph";
+import { ARRANGER_ROLES, NODE_TYPES, type ArrangerRole } from "../../../shared/graph";
 import type { Names } from "../../../shared/v1";
 import { useModel, usePalette, useT } from "../../context";
 import { Icon, TypeIcon } from "../../icons";
@@ -141,7 +141,10 @@ function WorkData({ detail }: { detail: WorkDetail }) {
               </header>
               <KV rows={[
                 [t.performers, r.performers.length ? <Performers list={r.performers} /> : null],
-                [t.arranger, r.arranger.length ? <Credits list={r.arranger} /> : null],
+                ...ARRANGER_ROLES.map((role): [string, ReactNode] => {
+                  const list = r[role];
+                  return [t.rel[role], list?.length ? <Credits list={list} /> : null];
+                }),
                 [t.override, r.override ? (
                   <span>{t.rel.lyricist}: <Credits list={r.override.lyricist} /> · {t.rel.composer}: <Credits list={r.override.composer} /></span>
                 ) : null],
@@ -273,13 +276,15 @@ function ReleaseData({ detail }: { detail: ReleaseDetail }) {
 
 // --- person ----------------------------------------------------------------------------------
 
+const isArranger = (r: string): r is ArrangerRole => (ARRANGER_ROLES as readonly string[]).includes(r);
+
 function PersonData({ node, detail }: { node: GNode; detail: PersonDetail }) {
   const t = useT();
   const model = useModel();
   const name = useNames();
   const aff = (work: string) => detail.affiliations.filter((a) => a.work === work)
     .map((a) => (typeof a.affiliation === "string" ? a.affiliation : name(a.affiliation))).join(", ");
-  const roles = (["lyricist", "composer", "arranger", "performer", "release_artist"] as const)
+  const roles = (["lyricist", "composer", ...ARRANGER_ROLES, "performer", "release_artist"] as const)
     .map((r) => [r, chronological(model, node.k, r)] as const).filter(([, list]) => list.length);
   return (
     <>
@@ -295,10 +300,10 @@ function PersonData({ node, detail }: { node: GNode; detail: PersonDetail }) {
           <DatedList items={list.map((f) => ({
             k: f.k, d: f.d,
             extra: <>
-              {r === "arranger" && detail.arranged.find((a) => a.work === f.k) && (
-                <span className="muted small">{detail.arranged.find((a) => a.work === f.k)!.recs.join(", ")}</span>
+              {isArranger(r) && detail.arranged.find((a) => a.work === f.k && a.role === r) && (
+                <span className="muted small">{detail.arranged.find((a) => a.work === f.k && a.role === r)!.recs.join(", ")}</span>
               )}
-              {(r === "lyricist" || r === "composer" || r === "arranger") && aff(f.k) && <span className="muted small">({aff(f.k)})</span>}
+              {(r === "lyricist" || r === "composer" || isArranger(r)) && aff(f.k) && <span className="muted small">({aff(f.k)})</span>}
               {f.w > 1 && <span className="muted small tabular">×{f.w}</span>}
             </>,
           }))} />

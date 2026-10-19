@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GEdge, ReleaseDetail, WorkDetail } from "../shared/graph";
+import type { GEdge, PersonDetail, ReleaseDetail, WorkDetail } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
 import { buildGraph } from "../scripts/lib/build-graph";
 import { mergePeriods } from "../scripts/lib/dates";
@@ -62,6 +62,17 @@ describe("buildGraph: fact edges", () => {
     expect(edge("arranger", "person:arranger", "work:alpha/w2")?.w).toBe(2);
     expect(edge("performer", "artist:unit-a", "work:alpha/w1")?.w).toBe(1);
     expect(edge("performer", "person:actor", "work:alpha/w2")).toBeDefined();
+  });
+
+  it("keeps strings and brass arrangement apart from arrangement", () => {
+    expect(edge("strings_arranger", "person:arranger", "work:alpha/w2")?.w).toBe(1);
+    expect(edge("arranger", "person:arranger", "work:alpha/w2")?.w).toBe(2);
+    expect(edgesOf("brass_arranger")).toHaveLength(0);
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.strings_arranger?.map((c) => c.ref)).toEqual(["person:arranger"]);
+    expect(w2.recordings.find((r) => r.id === "original")?.strings_arranger).toBeUndefined();
+    const arr = built.details.get("person:arranger") as PersonDetail;
+    expect(arr.arranged).toEqual([{ work: "work:alpha/w2", role: "strings_arranger", recs: ["alt"] }]);
   });
 
   it("merges back-to-back lineup periods into one membership", () => {

@@ -123,6 +123,8 @@ export interface Recording {
   version?: string;
   performers?: Performer[];
   arranger?: Credit[];
+  strings_arranger?: Credit[];
+  brass_arranger?: Credit[];
   credits_override?: WorkCredits;
   instrumental_of?: string;
   external_ids?: Record<string, string>;

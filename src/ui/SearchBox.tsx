@@ -40,6 +40,10 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
     setOpen(false);
   };
   const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    // an IME (Korean, Japanese) is still composing: this key commits the last syllable, and the
+    // results for the full text arrive with the change that follows. Picking now would clear the
+    // box, and the committed syllable would land in it alone (쿠스노 → 노).
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((a) => Math.min(a + 1, results.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
     else if (e.key === "Enter" && results[active]) { e.preventDefault(); pick(results[active].k); }

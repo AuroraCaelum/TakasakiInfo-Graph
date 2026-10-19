@@ -3,8 +3,9 @@
  *
  * Edge rules (each is documented on the site's legend as well):
  * - lyricist / composer: credited on the work, or on a recording through `credits_override`. w = 1.
- * - arranger / performer: credited on a recording of the work. w = number of recordings,
- *   Off Vocal and instrumental excluded (they repeat the vocal recording's credit), at least 1.
+ * - arranger / strings_arranger / brass_arranger / performer: credited on a recording of the
+ *   work. w = number of recordings, Off Vocal and instrumental excluded (they repeat the vocal
+ *   recording's credit), at least 1.
  * - member: character in a lineup of the artist; periods merged across lineups. w = 1.
  * - cv: casting of the character; periods from the casting. w = 1.
  * - track: a recording of the work is on the release. w = distinct recordings on the release.
@@ -13,15 +14,15 @@
  * - venue: the concert had a stop at the venue. w = performances at the venue.
  * - project: the node's own project field. w = 1.
  * Derived:
- * - co_credit: two persons both credited (lyricist, composer, arranger) on a work. w = works.
+ * - co_credit: two persons both credited (lyricist, composer, any arranger role) on a work. w = works.
  * - co_perform: two characters both singing a work. Artists count as their lineup at the
  *   recording's first release date; a person singing in a role counts as the role. w = works.
  * - shared_member: two artists whose lineups share characters. w = shared characters.
  */
 
 import {
-  isDerived,
-  type ArtistDetail, type CharacterDetail, type ConcertDetail, type CreditRef, type Detail, type GEdge, type GNode,
+  ARRANGER_ROLES, isDerived,
+  type ArrangerRole, type ArtistDetail, type CharacterDetail, type ConcertDetail, type CreditRef, type Detail, type GEdge, type GNode,
   type LinkRef, type NodeType, type Period, type PerformerRef, type PersonDetail, type ProjectDetail, type Relation,
   type ReleaseDetail, type ReleaseTrack, type VenueDetail, type WorkAppearance, type WorkDetail, type WorkPerformance,
 } from "../../shared/graph";
@@ -167,6 +168,8 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     if (!ref) return null;
     return { ref, ...(c.affiliation ? { affiliation: c.affiliation } : {}), ...(c.role ? { role: c.role } : {}) };
   };
+  const creditRefs = (list: V.Credit[] | undefined, where: string) =>
+    (list ?? []).map((c) => toCreditRef(c, where)).filter((x): x is CreditRef => !!x);
   const toPerformerRef = (p: V.Performer, where: string): PerformerRef | null => {
     const ref = refOf(p, where);
     if (!ref) return null;
@@ -210,7 +213,8 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     };
     collect(w.credits, where);
 
-    const arranged = new Map<string, string[]>(); // ref → recordings
+    const arranged = Object.fromEntries(ARRANGER_ROLES.map((r) => [r, new Map<string, string[]>()])) as
+      Record<ArrangerRole, Map<string, string[]>>; // role → ref → recordings
     const performed = new Map<string, string[]>();
     const recordings = [];
     const workSingers = new Set<string>();
@@ -218,12 +222,14 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       const rwhere = `${where}#${rec.id}`;
       const counts = !INSTRUMENTAL.has(rec.kind ?? "vocal");
       if (rec.credits_override) collect(rec.credits_override, rwhere);
-      for (const c of rec.arranger ?? []) {
-        const ref = refOf(c, rwhere);
-        if (!ref) continue;
-        arranged.set(ref, [...(arranged.get(ref) ?? []), rec.id]);
-        if (ref.startsWith("person:")) credited.add(ref);
-        if (c.affiliation && ref.startsWith("person:")) affiliations.push({ ref, affiliation: c.affiliation });
+      for (const role of ARRANGER_ROLES) {
+        for (const c of rec[role] ?? []) {
+          const ref = refOf(c, rwhere);
+          if (!ref) continue;
+          arranged[role].set(ref, [...(arranged[role].get(ref) ?? []), rec.id]);
+          if (ref.startsWith("person:")) credited.add(ref);
+          if (c.affiliation && ref.startsWith("person:")) affiliations.push({ ref, affiliation: c.affiliation });
+        }
       }
       for (const p of rec.performers ?? []) {
         const ref = refOf(p, rwhere);
@@ -249,7 +255,9 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
         ...(rec.title ? { title: rec.title } : {}),
         ...(rec.version ? { version: rec.version } : {}),
         performers: (rec.performers ?? []).map((p) => toPerformerRef(p, rwhere)).filter((x): x is PerformerRef => !!x),
-        arranger: (rec.arranger ?? []).map((c) => toCreditRef(c, rwhere)).filter((x): x is CreditRef => !!x),
+        arranger: creditRefs(rec.arranger, rwhere),
+        ...(rec.strings_arranger?.length ? { strings_arranger: creditRefs(rec.strings_arranger, rwhere) } : {}),
+        ...(rec.brass_arranger?.length ? { brass_arranger: creditRefs(rec.brass_arranger, rwhere) } : {}),
         ...(rec.credits_override ? {
           override: {
             lyricist: (rec.credits_override.lyricist ?? []).map((c) => toCreditRef(c, rwhere)).filter((x): x is CreditRef => !!x),
@@ -269,9 +277,11 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     const kindOf = new Map(w.recordings.map((r) => [r.id, r.kind ?? "vocal"]));
     const weightOf = (recs: string[]) => Math.max(1, new Set(recs.filter((r) => !INSTRUMENTAL.has(kindOf.get(r)!))).size);
     const firstDate = (recs: string[]) => recs.reduce<string | undefined>((d, r) => minDate(d, recordingDate(w.id, r)), undefined) ?? wd;
-    for (const [ref, recs] of arranged) {
-      addEdge("arranger", ref, wk, { w: weightOf(recs), d: firstDate(recs) });
-      if (ref.startsWith("person:") && recs.length < w.recordings.length) extraOf(ref).arranged.push({ work: wk, recs });
+    for (const role of ARRANGER_ROLES) {
+      for (const [ref, recs] of arranged[role]) {
+        addEdge(role, ref, wk, { w: weightOf(recs), d: firstDate(recs) });
+        if (ref.startsWith("person:") && recs.length < w.recordings.length) extraOf(ref).arranged.push({ work: wk, role, recs });
+      }
     }
     for (const [ref, recs] of performed) addEdge("performer", ref, wk, { w: weightOf(recs), d: firstDate(recs) });
     for (const { ref, affiliation } of affiliations) {

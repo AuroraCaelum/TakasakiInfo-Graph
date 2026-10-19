@@ -23,6 +23,8 @@ export const FACT_RELATIONS = [
   "lyricist", //       person | character → work
   "composer", //       person | character → work
   "arranger", //       person | character → work   (any recording of the work)
+  "strings_arranger", // person | character → work (any recording of the work)
+  "brass_arranger", // person | character → work   (any recording of the work)
   "performer", //      artist | character | person → work (any recording of the work)
   "member", //         character → artist          (lineup periods)
   "cv", //             character → person          (casting periods)
@@ -35,12 +37,16 @@ export const FACT_RELATIONS = [
 
 /** Derived edges are computed by documented rules and always drawn apart from facts (§10.7). */
 export const DERIVED_RELATIONS = [
-  "co_credit", //      person ↔ person: works both wrote, composed or arranged
+  "co_credit", //      person ↔ person: works both wrote, composed or arranged (any arrangement role)
   "co_perform", //     character ↔ character: works both sang (artists expanded to their lineup)
   "shared_member", //  artist ↔ artist: characters in both lineups
 ] as const;
 
 export type FactRelation = (typeof FACT_RELATIONS)[number];
+
+/** Recording-level arrangement credits, each its own relation. */
+export const ARRANGER_ROLES = ["arranger", "strings_arranger", "brass_arranger"] as const;
+export type ArrangerRole = (typeof ARRANGER_ROLES)[number];
 export type DerivedRelation = (typeof DERIVED_RELATIONS)[number];
 export type Relation = FactRelation | DerivedRelation;
 
@@ -152,6 +158,9 @@ export interface RecordingDetail {
   version?: string;
   performers: PerformerRef[];
   arranger: CreditRef[];
+  /** only when credited */
+  strings_arranger?: CreditRef[];
+  brass_arranger?: CreditRef[];
   override?: { lyricist: CreditRef[]; composer: CreditRef[] };
   instrumentalOf?: string;
   externalIds?: Record<string, string>;
@@ -225,8 +234,8 @@ export interface PersonDetail {
   distinctFrom: string[];
   /** affiliations this person is credited with, by work */
   affiliations: { work: string; affiliation: string | Names }[];
-  /** recordings arranged, by work (only works where not every recording is theirs) */
-  arranged: { work: string; recs: string[] }[];
+  /** recordings arranged, by work and role (only where not every recording of the work is theirs) */
+  arranged: { work: string; role: ArrangerRole; recs: string[] }[];
   /** roles sung as (D29) */
   sungAs: { work: string; role: string; recs: string[] }[];
   evidence?: EvidenceMap;

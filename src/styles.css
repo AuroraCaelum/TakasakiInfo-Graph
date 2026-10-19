@@ -176,6 +176,7 @@ h1, h2, h3, h4, h5 { margin: 0; }
 .check.small { font-size: 12px; min-height: 24px; }
 .check-label { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .only-btn { margin-left: auto; flex: none; white-space: nowrap; visibility: hidden; }
+.count + .only-btn { margin-left: 0; }
 .check:hover .only-btn, .only-btn:focus-visible { visibility: visible; }
 
 .swatch-fact, .swatch-derived { display: inline-block; width: 18px; height: 0; flex: none; vertical-align: middle; }

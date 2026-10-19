@@ -32,6 +32,9 @@ export const PROJECT_SLOT: Record<string, number> = {
   nijigasaki: 0, aqours: 1, hasunosora: 2, liella: 3, ikizulive: 4, musical: 5, muse: 6, external: 7,
 };
 
+/** Display order of projects (filters, legend); ids not listed follow, alphabetically. */
+export const PROJECT_ORDER = ["muse", "aqours", "nijigasaki", "liella", "musical", "hasunosora", "ikizulive", "external"];
+
 export const COMMUNITY_COLORS = 8;
 
 export interface Palette {

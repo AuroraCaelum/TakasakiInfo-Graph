@@ -68,7 +68,7 @@ export function fixture(): V.V1Dataset {
       credits: { lyricist: [{ person: "writer" }], composer: [{ character: "alpha/c1" }] },
       recordings: [
         { id: "original", performers: [{ character: "alpha/c3" }, { person: "actor", role: "alpha/c2" }], arranger: [{ person: "arranger" }] },
-        { id: "alt", performers: [{ character: "alpha/c3" }], arranger: [{ person: "arranger" }], credits_override: { composer: [{ person: "composer" }] } },
+        { id: "alt", performers: [{ character: "alpha/c3" }], arranger: [{ person: "arranger" }], strings_arranger: [{ person: "arranger" }], credits_override: { composer: [{ person: "composer" }] } },
       ],
     },
     {

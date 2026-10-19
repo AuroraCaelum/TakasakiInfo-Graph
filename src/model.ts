@@ -5,7 +5,7 @@ import {
   type Community, type DetailFile, type GEdge, type GNode, type GraphFile, type GraphMeta, type NodeType,
 } from "../shared/graph";
 import { pictogramUrl } from "./icons";
-import { PROJECT_SLOT } from "./theme";
+import { PROJECT_ORDER } from "./theme";
 
 export interface NodeAttrs {
   x: number;
@@ -40,8 +40,10 @@ export interface Model {
   list: GNode[];
   graph: Graph<NodeAttrs, EdgeAttrs>;
   communities: Community[];
-  /** project ids, in the fixed color order */
+  /** project ids, in the fixed display order (PROJECT_ORDER) */
   projects: string[];
+  /** nodes per project, the project hub itself excluded */
+  projectCounts: Record<string, number>;
   /** fact adjacency without project membership: the graph the analyses walk */
   adj: Map<string, { k: string; w: number }[]>;
   ranks: Record<MetricName, Map<string, Rank>>;
@@ -102,11 +104,18 @@ export function buildModel(file: GraphFile): Model {
   const typeCounts = Object.fromEntries(NODE_TYPES.map((t) => [t, 0])) as Record<NodeType, number>;
   for (const n of file.nodes) typeCounts[n.t] += 1;
 
+  const order = (id: string) => (PROJECT_ORDER.includes(id) ? PROJECT_ORDER.indexOf(id) : PROJECT_ORDER.length);
   const projects = file.nodes.filter((n) => n.t === "project").map((n) => n.k.slice("project:".length))
-    .sort((a, b) => (PROJECT_SLOT[a] ?? 99) - (PROJECT_SLOT[b] ?? 99) || a.localeCompare(b));
+    .sort((a, b) => order(a) - order(b) || a.localeCompare(b));
+  // nodes the project filter keeps for each project (a node of several projects counts in each)
+  const projectCounts = Object.fromEntries(projects.map((id) => [id, 0])) as Record<string, number>;
+  for (const n of file.nodes) {
+    if (n.t === "project") continue;
+    for (const id of n.p) if (id in projectCounts) projectCounts[id] += 1;
+  }
 
   return {
-    meta: file.meta, nodes, list: file.nodes, graph, communities: file.communities, projects, adj,
+    meta: file.meta, nodes, list: file.nodes, graph, communities: file.communities, projects, projectCounts, adj,
     ranks: computeRanks(file.nodes), typeCounts,
   };
 }

@@ -79,6 +79,7 @@ export function FilterPanel() {
             <label key={id} className="check">
               <input type="checkbox" checked={projectOn(id)} onChange={() => toggleProject(id)} />
               <span className="check-label">{projectName(id)}</span>
+              <span className="count">{(model.projectCounts[id] ?? 0).toLocaleString()}</span>
               <button type="button" className="text-btn only-btn" onClick={(e) => { e.preventDefault(); s.set({ projects: [id] }); }}>{t.only}</button>
             </label>
           ))}
