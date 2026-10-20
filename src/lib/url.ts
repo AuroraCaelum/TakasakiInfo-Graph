@@ -1,7 +1,7 @@
 /**
  * Deep links: the view state as a query string, writing only what differs from the defaults.
  *
- *   ?n=work:nijigasaki/dive&tab=related&focus=2&names=ja&p=nijigasaki,aqours&r=-project&at=2022-01-01
+ *   ?n=work:nijigasaki/dive&tab=related&focus=2&names=ja&p=nijigasaki,aqours&r=-project&at=2022-01-01&bgm=0
  */
 
 import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
@@ -46,6 +46,7 @@ export function toQuery(s: ViewState, defaults: Pick<ViewState, "uiLang" | "name
   const t = diff(NODE_TYPES, s.types, DEFAULT_FILTERS.types);
   if (t) q.set("t", t);
   if (s.drama) q.set("drama", "1");
+  if (!s.bgm) q.set("bgm", "0");
   const r = diff(RELATIONS, s.relations, DEFAULT_FILTERS.relations);
   if (r) q.set("r", r);
   if (!s.hideIsolated) q.set("isolated", "1");
@@ -84,6 +85,7 @@ export function fromQuery(search: string, base: ViewState, isNode: (k: string) =
   const t = q.get("t");
   if (t) s.types = applyDiff<NodeType>(NODE_TYPES, t, DEFAULT_FILTERS.types);
   if (q.get("drama") === "1") s.drama = true;
+  if (q.get("bgm") === "0") s.bgm = false;
   const r = q.get("r");
   if (r) s.relations = applyDiff<Relation>(RELATIONS, r, DEFAULT_FILTERS.relations);
   if (q.get("isolated") === "1") s.hideIsolated = false;

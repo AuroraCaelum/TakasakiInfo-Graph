@@ -21,6 +21,7 @@ export interface Visible {
 export function nodePasses(n: GNode, f: VisibilityInput): boolean {
   if (!f.types[n.t]) return false;
   if (n.t === "work" && n.s === "drama" && !f.drama) return false;
+  if (n.t === "work" && n.s === "bgm" && !f.bgm) return false;
   if (f.projects && n.p.length && !n.p.some((p) => f.projects!.includes(p))) return false;
   if (f.time && n.d && n.d > f.time) return false;
   return true;

@@ -38,7 +38,7 @@ export function DetailPanel() {
       <header className="detail-head">
         <div className="detail-type">
           <span className="type-dot" style={{ background: p.type[node.t] }}>
-            <TypeIcon type={node.t} size={13} style={{ color: p.picto[node.t] }} strokeWidth={2.6} />
+            <TypeIcon type={node.t} sub={node.s} size={13} style={{ color: p.picto[node.t] }} strokeWidth={2.6} />
           </span>
           <span>{t.types[node.t]}</span>
           {sub && <Badge>{sub}</Badge>}

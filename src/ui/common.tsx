@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 
-import type { Period } from "../../shared/graph";
+import type { Period, PersonDetail } from "../../shared/graph";
 import type { Evidence, EvidenceMap } from "../../shared/v1";
 import { useModel, useNode, usePalette, useT } from "../context";
 import { Icon, TypeIcon } from "../icons";
@@ -21,7 +21,7 @@ export function NodeLink({ k, children, plain }: { k: string; children?: ReactNo
       type="button" className={plain ? "node-link plain" : "node-link"} onClick={() => select(k)}
       title={`${t.types[node.t]}${other ? ` · ${other}` : ""}`}
     >
-      <TypeIcon type={node.t} size={14} style={{ color: p.type[node.t] }} />
+      <TypeIcon type={node.t} sub={node.s} size={14} style={{ color: p.type[node.t] }} />
       <span className="node-link-name">{nameOf(node.n, lang, k)}</span>
       {children}
     </button>
@@ -106,6 +106,24 @@ function EvidenceRow({ field, ev }: { field: string; ev: Evidence }) {
       {ev.checked && <span className="muted tabular">{t.checked} {ev.checked}</span>}
       {ev.note && <span className="evidence-note">{ev.note}</span>}
     </li>
+  );
+}
+
+/** A person's aliases: kind and note, misprints left out (they stay searchable). */
+export function Aliases({ list }: { list: PersonDetail["aliases"] }) {
+  const t = useT();
+  const shown = list.filter((a) => a.kind !== "misprint");
+  if (!shown.length) return null;
+  return (
+    <span className="alias-list">
+      {shown.map((a, i) => (
+        <span key={i} className="alias">
+          <span>{a.text}</span>
+          <Badge tone="muted">{t.aliasKind[a.kind] ?? a.kind}</Badge>
+          {a.note && <span className="muted small">{a.note}</span>}
+        </span>
+      ))}
+    </span>
   );
 }
 

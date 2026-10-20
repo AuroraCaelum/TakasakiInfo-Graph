@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { GEdge, PersonDetail, ReleaseDetail, WorkDetail } from "../shared/graph";
+import type { CityDetail, ConcertDetail, GEdge, PersonDetail, ReleaseDetail, VenueDetail, WorkDetail } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
 import { buildGraph } from "../scripts/lib/build-graph";
 import { mergePeriods } from "../scripts/lib/dates";
@@ -15,9 +15,10 @@ const edgesOf = (r: string) => built.edges.filter((e) => e.r === r);
 describe("buildGraph: nodes", () => {
   it("makes one node per entity, keyed by type and id", () => {
     expect(built.warnings).toEqual([]);
-    expect(built.nodes.size).toBe(2 + 6 + 4 + 2 + 4 + 2 + 1 + 2);
+    // projects (external is not one), persons, characters, artists, works, releases, concerts, venues, cities
+    expect(built.nodes.size).toBe(2 + 6 + 5 + 3 + 6 + 2 + 2 + 3 + 2);
     expect(built.nodes.get("work:alpha/d1")).toMatchObject({ t: "work", s: "drama", p: ["alpha"] });
-    expect(built.nodes.get("person:writer")?.al).toEqual(["作詞太郎"]);
+    expect(built.nodes.get("person:writer")?.al).toEqual(["作詞太郎", "作詞大郎"]); // misprints stay searchable
   });
 
   it("gives persons and venues the projects of what they are linked to", () => {
@@ -104,6 +105,91 @@ describe("buildGraph: fact edges", () => {
   });
 });
 
+describe("buildGraph: works and characters outside the series (D50)", () => {
+  it("draws no external project; its nodes are marked and take the projects of what they are linked to", () => {
+    expect(built.nodes.has("project:external")).toBe(false);
+    expect(built.nodes.get("work:external/cover")).toMatchObject({ ext: true, p: ["alpha", "beta"] }); // its concert
+    expect(built.nodes.get("character:external/guest")).toMatchObject({ ext: true, p: ["alpha", "beta"] }); // w2 and the fes
+    expect(built.nodes.get("work:alpha/w1")?.ext).toBeUndefined();
+    expect(edgesOf("project").some((e) => e.s.includes("external/") || e.t === "project:external")).toBe(false);
+  });
+
+  it("keeps BGM works as works of their own kind", () => {
+    expect(built.nodes.get("work:alpha/bgm1")).toMatchObject({ t: "work", s: "bgm", p: ["alpha"], d: "2025-03-01" });
+    expect(edge("composer", "person:composer", "work:alpha/bgm1")).toBeDefined();
+    expect(edge("setlist", "work:alpha/bgm1", "concert:beta/fes")?.w).toBe(1);
+  });
+});
+
+describe("buildGraph: concerts", () => {
+  const fes = built.details.get("concert:beta/fes") as ConcertDetail;
+
+  it("links who sang in the set lists to the concert, weighted by shows", () => {
+    expect(edge("appearance", "artist:unit-a", "concert:beta/fes")).toMatchObject({ w: 2, d: "2025-03-01" }); // noon and evening
+    expect(edge("appearance", "character:alpha/c3", "concert:beta/fes")?.w).toBe(2); // noon and the online show
+    expect(edge("appearance", "character:external/guest", "concert:beta/fes")?.w).toBe(1); // featured guests too
+    expect(edge("appearance", "artist:unit-c", "concert:beta/fes")?.w).toBe(1); // joint names too
+    expect(edgesOf("appearance").some((e) => e.t === "concert:alpha/live")).toBe(false); // no performers listed there
+  });
+
+  it("gives an online-only show neither city nor venue, without a warning (D47)", () => {
+    expect(built.warnings).toEqual([]);
+    const online = fes.stops.find((s) => s.id === "2-online")!;
+    expect(online.city).toBeUndefined();
+    expect(online.venue).toBeUndefined();
+    expect(fes.stops[0]).toMatchObject({ city: "city:osaka", venue: "venue:hall-3" });
+  });
+
+  it("writes the version sung: the linked recording's, else the set list's own", () => {
+    const noon = fes.stops[0].performances[0];
+    expect(noon.setlist.map((x) => x.version)).toEqual(["Short Ver.", "Alt Ver.", undefined, undefined]);
+    expect(noon.setlist[1].rec).toBe("alt");
+    const w1 = built.details.get("work:alpha/w1") as WorkDetail;
+    expect(w1.performances.find((p) => p.concert === "concert:beta/fes")).toMatchObject({ version: "Short Ver.", venue: "venue:hall-3" });
+  });
+
+  it("keeps each show's Fandom tab", () => {
+    expect(fes.stops[0].performances.map((p) => p.fandom)).toEqual(["Osaka|Day 1", undefined]);
+    expect(fes.externalIds).toEqual({ fandom: "Beta Fes" });
+  });
+});
+
+describe("buildGraph: cities", () => {
+  it("makes city nodes linked to their venues, dated by the venue's first show", () => {
+    expect(edge("city", "venue:hall-1", "city:tokyo")).toMatchObject({ w: 1, d: "2021-05-01" });
+    expect(edge("city", "venue:hall-3", "city:osaka")?.d).toBe("2025-03-01");
+    expect(built.nodes.get("city:osaka")).toMatchObject({ p: ["alpha", "beta"], d: "2021-06-01" });
+  });
+
+  it("lists a city's stops and keeps city and venue evidence", () => {
+    const osaka = built.details.get("city:osaka") as CityDetail;
+    expect(osaka.stops.map((s) => [s.concert, s.venue])).toEqual([["concert:alpha/live", "venue:hall-2"], ["concert:beta/fes", "venue:hall-3"]]);
+    expect((built.details.get("city:tokyo") as CityDetail).evidence?.names.status).toBe("draft");
+    const hall1 = built.details.get("venue:hall-1") as VenueDetail;
+    expect(hall1).toMatchObject({ city: "city:tokyo", evidence: { names: { status: "official" } } });
+  });
+});
+
+describe("buildGraph: credit forms", () => {
+  it("marks featured guests and joint names on performers (D48)", () => {
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.performers).toEqual([
+      { ref: "character:alpha/c3" }, { ref: "character:external/guest", featured: true },
+    ]);
+    expect((built.details.get("release:beta/2024-r2") as ReleaseDetail).artistCredit).toEqual([
+      { ref: "artist:unit-a", joint: true }, { ref: "artist:unit-c", joint: true },
+    ]);
+    expect(edge("performer", "character:external/guest", "work:alpha/w2")).toBeDefined(); // still a performer
+  });
+
+  it("keeps full-width affiliation brackets (D42)", () => {
+    const w1 = built.details.get("work:alpha/w1") as WorkDetail;
+    expect(w1.credits.composer).toEqual([{ ref: "person:composer", affiliation: "Studio", fullwidth: true }]);
+    const composer = built.details.get("person:composer") as PersonDetail;
+    expect(composer.affiliations).toEqual([{ work: "work:alpha/w1", affiliation: "Studio", fullwidth: true }]);
+  });
+});
+
 describe("buildGraph: derived edges", () => {
   it("co_credit counts works two persons share, with the works as evidence", () => {
     expect(edge("co_credit", "person:composer", "person:writer")).toMatchObject({ w: 2, via: ["work:alpha/w1", "work:alpha/w2"] });
@@ -134,7 +220,7 @@ describe("buildGraph: details", () => {
     const w1 = built.details.get("work:alpha/w1") as WorkDetail;
     expect(w1.appearances.map((a) => a.release)).toEqual(["release:alpha/2022-r1", "release:beta/2024-r2"]);
     expect(w1.appearances[0].tracks.find((t) => t.rec === "off-vocal")?.editions).toEqual(["e1", "e2"]);
-    expect(w1.performances.map((p) => p.date)).toEqual(["2021-05-01", "2021-05-02"]);
+    expect(w1.performances.map((p) => p.date)).toEqual(["2021-05-01", "2021-05-02", "2025-03-01", "2025-03-01"]);
     expect(w1.recordings[0].mainLink).toBe("https://music.youtube.com/watch?v=a");
   });
 

@@ -11,8 +11,12 @@
  * - track: a recording of the work is on the release. w = distinct recordings on the release.
  * - release_artist: the release's artist credit. w = 1.
  * - setlist: the work was performed at the concert. w = performances (days) it was performed on.
+ * - appearance: an artist, character or person sang in the concert's set lists (featured guests
+ *   and joint names included). w = performances (days) they sang on.
  * - venue: the concert had a stop at the venue. w = performances at the venue.
- * - project: the node's own project field. w = 1.
+ * - city: the venue is in the city. w = 1.
+ * - project: the node's own project field. w = 1. The external project (works and characters
+ *   outside the series) is not a hub: those nodes take the projects of what they are linked to.
  * Derived:
  * - co_credit: two persons both credited (lyricist, composer, any arranger role) on a work. w = works.
  * - co_perform: two characters both singing a work. Artists count as their lineup at the
@@ -21,10 +25,11 @@
  */
 
 import {
-  ARRANGER_ROLES, isDerived,
-  type ArrangerRole, type ArtistDetail, type CharacterDetail, type ConcertDetail, type CreditRef, type Detail, type GEdge, type GNode,
-  type LinkRef, type NodeType, type Period, type PerformerRef, type PersonDetail, type ProjectDetail, type Relation,
-  type ReleaseDetail, type ReleaseTrack, type VenueDetail, type WorkAppearance, type WorkDetail, type WorkPerformance,
+  ARRANGER_ROLES, EXTERNAL_PROJECT, isDerived,
+  type ArrangerRole, type ArtistDetail, type CharacterDetail, type CityDetail, type ConcertDetail, type CreditRef, type Detail,
+  type GEdge, type GNode, type LinkRef, type NodeType, type Period, type PerformerRef, type PersonDetail, type ProjectDetail,
+  type Relation, type ReleaseDetail, type ReleaseTrack, type SetlistEntry, type VenueDetail, type WorkAppearance, type WorkDetail,
+  type WorkPerformance,
 } from "../../shared/graph";
 import type * as V from "../../shared/v1";
 import { inPeriod, mergePeriods, minDate } from "./dates";
@@ -53,6 +58,9 @@ interface EdgeAcc {
 }
 
 const sortedUnique = (xs: Iterable<string>) => [...new Set(xs)].sort();
+/** The projects a node is drawn under: the external project is not one (see EXTERNAL_PROJECT). */
+const ownProjects = (ps: string[]) => sortedUnique(ps.filter((p) => p !== EXTERNAL_PROJECT));
+const isExternal = (ps: string[]) => ps.length > 0 && ps.every((p) => p === EXTERNAL_PROJECT);
 const pairKey = (a: string, b: string) => (a < b ? `${a}\u0000${b}` : `${b}\u0000${a}`);
 
 export function buildGraph(ds: V.V1Dataset): BuiltGraph {
@@ -61,7 +69,6 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
   const details = new Map<string, Detail>();
   const edges = new Map<string, EdgeAcc>();
 
-  const cityNames = new Map(ds.cities.map((c) => [c.id, c.names]));
   const artists = new Map(ds.artists.map((a) => [a.id, a]));
 
   const addNode = (n: NodeDraft) => {
@@ -69,28 +76,35 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     nodes.set(n.k, n);
   };
 
-  for (const p of ds.projects) addNode({ k: nodeKey("project", p.id), t: "project", n: p.names, p: [p.id] });
+  const ext = (ps: string[]) => (isExternal(ps) ? { ext: true as const } : {});
+  for (const p of ds.projects) {
+    if (p.id !== EXTERNAL_PROJECT) addNode({ k: nodeKey("project", p.id), t: "project", n: p.names, p: [p.id] });
+  }
   for (const p of ds.persons) {
     const al = (p.aliases ?? []).map((a) => a.text);
     addNode({ k: nodeKey("person", p.id), t: "person", n: p.names, p: [], ...(al.length ? { al } : {}) });
   }
-  for (const c of ds.characters) addNode({ k: nodeKey("character", c.id), t: "character", n: c.names, p: [c.project] });
+  for (const c of ds.characters) {
+    addNode({ k: nodeKey("character", c.id), t: "character", n: c.names, p: ownProjects([c.project]), ...ext([c.project]) });
+  }
   for (const a of ds.artists) {
-    addNode({ k: nodeKey("artist", a.id), t: "artist", n: a.names, p: sortedUnique(a.projects ?? []), s: a.kind });
+    const ps = a.projects ?? [];
+    addNode({ k: nodeKey("artist", a.id), t: "artist", n: a.names, p: ownProjects(ps), s: a.kind, ...ext(ps) });
   }
   for (const w of ds.works) {
-    addNode({ k: nodeKey("work", w.id), t: "work", n: w.title, p: [w.project], s: w.kind ?? "song" });
+    addNode({ k: nodeKey("work", w.id), t: "work", n: w.title, p: ownProjects([w.project]), s: w.kind ?? "song", ...ext([w.project]) });
   }
   for (const r of ds.releases) {
     addNode({
-      k: nodeKey("release", r.id), t: "release", n: r.title, p: sortedUnique(r.projects),
-      s: r.type ?? "unclassified", st: r.status ?? "released",
+      k: nodeKey("release", r.id), t: "release", n: r.title, p: ownProjects(r.projects),
+      s: r.type ?? "unclassified", st: r.status ?? "released", ...ext(r.projects),
     });
   }
   for (const c of ds.concerts) {
-    addNode({ k: nodeKey("concert", c.id), t: "concert", n: c.title, p: sortedUnique(c.projects), st: c.status ?? "settled" });
+    addNode({ k: nodeKey("concert", c.id), t: "concert", n: c.title, p: ownProjects(c.projects), st: c.status ?? "settled", ...ext(c.projects) });
   }
   for (const v of ds.venues) addNode({ k: nodeKey("venue", v.id), t: "venue", n: v.names, p: [] });
+  for (const c of ds.cities) addNode({ k: nodeKey("city", c.id), t: "city", n: c.names, p: [] });
 
   /** `person:x` / `character:x` / `artist:x` from a credit or performer, if the target exists. */
   const refOf = (x: { person?: string; character?: string; artist?: string }, where: string): string | null => {
@@ -119,6 +133,14 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     e.d = minDate(e.d, opts.d);
     if (opts.pd) e.pd.push(...opts.pd);
     for (const v of opts.via ?? []) e.via.add(v);
+  };
+  /** Membership edges to the node's own projects; the external project is not a hub. */
+  const linkProjects = (k: string, projects: string[], where: string, d?: string) => {
+    for (const p of projects) {
+      if (p === EXTERNAL_PROJECT) continue;
+      if (nodes.has(nodeKey("project", p))) addEdge("project", k, nodeKey("project", p), { d });
+      else warnings.add(`${where}: unknown project ${p}`);
+    }
   };
 
   // --- dates from the tracks view ----------------------------------------------------------
@@ -166,7 +188,10 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
   const toCreditRef = (c: V.Credit, where: string): CreditRef | null => {
     const ref = refOf(c, where);
     if (!ref) return null;
-    return { ref, ...(c.affiliation ? { affiliation: c.affiliation } : {}), ...(c.role ? { role: c.role } : {}) };
+    return {
+      ref, ...(c.affiliation ? { affiliation: c.affiliation } : {}), ...(c.affiliation && c.fullwidth ? { fullwidth: true as const } : {}),
+      ...(c.role ? { role: c.role } : {}),
+    };
   };
   const creditRefs = (list: V.Credit[] | undefined, where: string) =>
     (list ?? []).map((c) => toCreditRef(c, where)).filter((x): x is CreditRef => !!x);
@@ -174,7 +199,9 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     const ref = refOf(p, where);
     if (!ref) return null;
     const role = p.role ? checked(nodeKey("character", p.role), where) : null;
-    return role ? { ref, role } : { ref };
+    return {
+      ref, ...(role ? { role } : {}), ...(p.featured ? { featured: true as const } : {}), ...(p.joint ? { joint: true as const } : {}),
+    };
   };
 
   /** Characters singing a recording: artists expanded to the lineup at `date` (co_perform). */
@@ -199,7 +226,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
 
     const writers: Record<"lyricist" | "composer", Set<string>> = { lyricist: new Set(), composer: new Set() };
     const credited = new Set<string>(); // persons, for co_credit
-    const affiliations: { ref: string; affiliation: string | V.Names }[] = [];
+    const affiliations: { ref: string; affiliation: string | V.Names; fullwidth: boolean }[] = [];
     const collect = (credits: V.WorkCredits | undefined, w2: string) => {
       for (const role of ["lyricist", "composer"] as const) {
         for (const c of credits?.[role] ?? []) {
@@ -207,7 +234,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
           if (!ref) continue;
           writers[role].add(ref);
           if (ref.startsWith("person:")) credited.add(ref);
-          if (c.affiliation && ref.startsWith("person:")) affiliations.push({ ref, affiliation: c.affiliation });
+          if (c.affiliation && ref.startsWith("person:")) affiliations.push({ ref, affiliation: c.affiliation, fullwidth: !!c.fullwidth });
         }
       }
     };
@@ -228,7 +255,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
           if (!ref) continue;
           arranged[role].set(ref, [...(arranged[role].get(ref) ?? []), rec.id]);
           if (ref.startsWith("person:")) credited.add(ref);
-          if (c.affiliation && ref.startsWith("person:")) affiliations.push({ ref, affiliation: c.affiliation });
+          if (c.affiliation && ref.startsWith("person:")) affiliations.push({ ref, affiliation: c.affiliation, fullwidth: !!c.fullwidth });
         }
       }
       for (const p of rec.performers ?? []) {
@@ -284,10 +311,10 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       }
     }
     for (const [ref, recs] of performed) addEdge("performer", ref, wk, { w: weightOf(recs), d: firstDate(recs) });
-    for (const { ref, affiliation } of affiliations) {
+    for (const { ref, affiliation, fullwidth } of affiliations) {
       const list = extraOf(ref).affiliations;
       if (!list.some((a) => a.work === wk && JSON.stringify(a.affiliation) === JSON.stringify(affiliation))) {
-        list.push({ work: wk, affiliation });
+        list.push({ work: wk, affiliation, ...(fullwidth ? { fullwidth: true as const } : {}) });
       }
     }
 
@@ -307,8 +334,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     pairUp(credited, coCredit);
     pairUp(workSingers, coPerform);
 
-    if (nodes.has(nodeKey("project", w.project))) addEdge("project", wk, nodeKey("project", w.project), { d: wd });
-    else warnings.add(`${where}: unknown project ${w.project}`);
+    linkProjects(wk, [w.project], where, wd);
 
     details.set(wk, {
       t: "work",
@@ -334,7 +360,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       const pk = checked(nodeKey("person", cast.person), `character ${c.id}`);
       if (pk) addEdge("cv", ck, pk, { pd: [[cast.from ?? null, cast.until ?? null]], d: cast.from });
     }
-    if (nodes.has(nodeKey("project", c.project))) addEdge("project", ck, nodeKey("project", c.project));
+    linkProjects(ck, [c.project], `character ${c.id}`);
   }
 
   // --- artists: lineups, projects ----------------------------------------------------------
@@ -354,10 +380,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       addEdge("member", mk, ak, { pd: merged, d: merged[0]?.[0] ?? undefined });
     }
     membersOf.set(ak, new Set(periods.keys()));
-    for (const p of a.projects ?? []) {
-      if (nodes.has(nodeKey("project", p))) addEdge("project", ak, nodeKey("project", p));
-      else warnings.add(`artist ${a.id}: unknown project ${p}`);
-    }
+    linkProjects(ak, a.projects ?? [], `artist ${a.id}`);
   }
 
   // --- releases: tracks, artist credit ---------------------------------------------------------
@@ -397,10 +420,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       artistCredit.push(pr);
       addEdge("release_artist", pr.ref, rk, { d: rd });
     }
-    for (const p of r.projects) {
-      if (nodes.has(nodeKey("project", p))) addEdge("project", rk, nodeKey("project", p), { d: rd });
-      else warnings.add(`${where}: unknown project ${p}`);
-    }
+    linkProjects(rk, r.projects, where, rd);
 
     // tracklists: one per edition, then editions with the same tracklist and links grouped
     const byEdition = new Map<string, V.TrackRow[]>();
@@ -452,60 +472,86 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     if (d) d.appearances = [...byRelease.values()].sort((a, b) => (a.date ?? "9").localeCompare(b.date ?? "9") || a.release.localeCompare(b.release));
   }
 
-  // --- concerts: setlists, venues ----------------------------------------------------------
+  // --- concerts: setlists, appearances, venues ------------------------------------------------
+  const recVersion = new Map<string, string | undefined>(ds.works.flatMap((w) => w.recordings.map((r) => [`${w.id}#${r.id}`, r.version] as const)));
   const venueStops = new Map<string, VenueDetail["stops"]>();
+  const cityStops = new Map<string, CityDetail["stops"]>();
   for (const c of ds.concerts) {
     const ck = nodeKey("concert", c.id);
     const where = `concert ${c.id}`;
     const perfDays = new Map<string, { n: number; d?: string }>(); // work key → performances
+    const appeared = new Map<string, { n: number; d?: string }>(); // performer key → performances
+    const count = (into: typeof perfDays, k: string, date: string) => {
+      const acc = into.get(k) ?? { n: 0 };
+      acc.n += 1;
+      acc.d = minDate(acc.d, date);
+      into.set(k, acc);
+    };
     const stops: ConcertDetail["stops"] = [];
     for (const s of c.stops) {
-      const vk = checked(nodeKey("venue", s.venue), `${where}/${s.id}`);
+      const swhere = `${where}/${s.id}`;
+      // an online-only show has neither city nor venue (D47)
+      const vk = s.venue ? checked(nodeKey("venue", s.venue), swhere) : null;
+      const cityKey = s.city ? checked(nodeKey("city", s.city), swhere) : null;
       const dates = s.performances.map((p) => p.date).sort();
       if (vk) {
         addEdge("venue", ck, vk, { w: s.performances.length, d: dates[0] });
         venueStops.set(vk, [...(venueStops.get(vk) ?? []), { concert: ck, stop: s.id, dates }]);
       }
+      if (cityKey) cityStops.set(cityKey, [...(cityStops.get(cityKey) ?? []), { concert: ck, stop: s.id, ...(vk ? { venue: vk } : {}), dates }]);
       const performances = s.performances.map((p) => {
+        const pwhere = `${swhere}/${p.date}`;
         const seen = new Set<string>();
-        const setlist = (p.setlist ?? []).map((item) => {
-          const wk = item.work ? checked(nodeKey("work", item.work), `${where}/${s.id}/${p.date}`) : null;
+        const sang = new Set<string>();
+        const setlist = (p.setlist ?? []).map((item): SetlistEntry => {
+          const wk = item.work ? checked(nodeKey("work", item.work), pwhere) : null;
+          const rec = item.recording ? item.recording.slice(item.recording.indexOf("#") + 1) : undefined;
+          const version = (item.recording ? recVersion.get(item.recording) : undefined) ?? item.version;
           if (wk && !seen.has(wk)) {
             seen.add(wk);
-            const acc = perfDays.get(wk) ?? { n: 0 };
-            acc.n += 1;
-            acc.d = minDate(acc.d, p.date);
-            perfDays.set(wk, acc);
+            count(perfDays, wk, p.date);
             const dd = details.get(wk) as WorkDetail | undefined;
             dd?.performances.push({
-              concert: ck, stop: s.id, venue: vk ?? "", date: p.date,
-              ...(item.recording ? { rec: item.recording.slice(item.recording.indexOf("#") + 1) } : {}),
+              concert: ck, stop: s.id, ...(vk ? { venue: vk } : {}), date: p.date,
+              ...(rec ? { rec } : {}), ...(version ? { version } : {}),
             } satisfies WorkPerformance);
           }
+          const performers = (item.performers ?? []).map((x) => toPerformerRef(x, pwhere)).filter((x): x is PerformerRef => !!x);
+          for (const x of performers) sang.add(x.ref);
           return {
             type: item.type ?? "song",
             ...(wk ? { work: wk } : {}),
-            ...(item.recording ? { rec: item.recording.slice(item.recording.indexOf("#") + 1) } : {}),
+            ...(rec ? { rec } : {}),
+            ...(version ? { version } : {}),
             ...(item.label ? { label: item.label } : {}),
             ...(item.title_raw ? { titleRaw: item.title_raw } : {}),
-            performers: (item.performers ?? []).map((x) => toPerformerRef(x, where)).filter((x): x is PerformerRef => !!x),
+            performers,
           };
         });
-        return { date: p.date, ...(p.label ? { label: p.label } : {}), setlist };
+        for (const k of sang) count(appeared, k, p.date);
+        const fandom = p.external_ids?.fandom;
+        return { date: p.date, ...(p.label ? { label: p.label } : {}), ...(fandom ? { fandom } : {}), setlist };
       });
-      stops.push({ id: s.id, city: cityNames.get(s.city) ?? { rom: s.city }, ...(s.label ? { label: s.label } : {}), venue: vk ?? "", performances });
+      stops.push({ id: s.id, ...(cityKey ? { city: cityKey } : {}), ...(s.label ? { label: s.label } : {}), ...(vk ? { venue: vk } : {}), performances });
     }
     for (const [wk, { n, d }] of perfDays) addEdge("setlist", wk, ck, { w: n, d });
-    for (const p of c.projects) {
-      if (nodes.has(nodeKey("project", p))) addEdge("project", ck, nodeKey("project", p));
-      else warnings.add(`${where}: unknown project ${p}`);
-    }
+    for (const [k, { n, d }] of appeared) addEdge("appearance", k, ck, { w: n, d });
+    linkProjects(ck, c.projects, where);
     details.set(ck, {
       t: "concert", title: c.title, status: c.status ?? "settled", projects: c.projects, stops,
       ...(c.external_ids && Object.keys(c.external_ids).length ? { externalIds: c.external_ids } : {}),
       ...(c.legacy?.event_code ? { eventCode: c.legacy.event_code } : {}),
       ...(c.evidence ? { evidence: c.evidence } : {}),
     } satisfies ConcertDetail);
+  }
+
+  // --- venues: cities --------------------------------------------------------------------------
+  for (const v of ds.venues) {
+    if (!v.city) continue;
+    const vk = nodeKey("venue", v.id);
+    const cityKey = checked(nodeKey("city", v.city), `venue ${v.id}`);
+    const first = (venueStops.get(vk) ?? []).flatMap((x) => x.dates).sort()[0];
+    if (cityKey) addEdge("city", vk, cityKey, { d: first });
   }
   for (const d of details.values()) {
     if (d.t === "work") d.performances.sort((a, b) => a.date.localeCompare(b.date) || a.concert.localeCompare(b.concert));
@@ -554,26 +600,35 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     if (!inherited.size) break;
     for (const [k, d] of inherited) nodes.get(k)!.d = d;
   }
-  // persons and venues take the projects of what they are linked to
-  const projectsOf = (k: string) => nodes.get(k)?.p ?? [];
-  const derivedProjects = new Map<string, Set<string>>();
-  const addProjects = (k: string, from: string) => {
-    const set = derivedProjects.get(k) ?? new Set<string>();
-    for (const p of projectsOf(from)) set.add(p);
-    derivedProjects.set(k, set);
+  // Persons, venues, cities and nodes outside the series take the projects of what they are
+  // linked to, in an order where each step reads projects that are already known: external
+  // works from their concerts and releases, then external characters and artists from their
+  // works, then persons, then venues, then cities.
+  const deriveProjects = (want: (n: NodeDraft) => boolean, relations: Relation[]) => {
+    const derived = new Map<string, Set<string>>();
+    for (const e of edgeList) {
+      if (!relations.includes(e.r)) continue;
+      for (const [k, from] of [[e.s, e.t], [e.t, e.s]]) {
+        if (!want(nodes.get(k)!)) continue;
+        const set = derived.get(k) ?? new Set<string>();
+        for (const p of nodes.get(from)!.p) set.add(p);
+        derived.set(k, set);
+      }
+    }
+    for (const [k, set] of derived) nodes.get(k)!.p = [...set].sort();
   };
-  for (const e of edgeList) {
-    if (["lyricist", "composer", "arranger", "performer", "release_artist"].includes(e.r) && e.s.startsWith("person:")) addProjects(e.s, e.t);
-    if (e.r === "cv") addProjects(e.t, e.s);
-    if (e.r === "venue") addProjects(e.t, e.s);
-  }
-  for (const [k, set] of derivedProjects) nodes.get(k)!.p = [...set].sort();
+  const credits: Relation[] = ["lyricist", "composer", ...ARRANGER_ROLES];
+  deriveProjects((n) => !!n.ext && n.t === "work", ["setlist", "track"]);
+  deriveProjects((n) => !!n.ext && n.t !== "work", [...credits, "performer", "release_artist", "appearance", "member"]);
+  deriveProjects((n) => n.t === "person", [...credits, "performer", "release_artist", "appearance", "cv"]);
+  deriveProjects((n) => n.t === "venue", ["venue"]);
+  deriveProjects((n) => n.t === "city", ["city"]);
   // A membership is dated by when the node is in that project: its own date, or for an artist
-  // (which can belong to several projects) its first song, release or member of that project.
+  // (which can belong to several projects) its first song, release, concert or member of that project.
   // A project exists from its first dated membership.
   const artistEdges = new Map<string, EdgeAcc[]>();
   for (const e of edgeList) {
-    if (e.r !== "performer" && e.r !== "release_artist" && e.r !== "member") continue;
+    if (e.r !== "performer" && e.r !== "release_artist" && e.r !== "member" && e.r !== "appearance") continue;
     for (const k of [e.s, e.t]) if (k.startsWith("artist:")) artistEdges.set(k, [...(artistEdges.get(k) ?? []), e]);
   }
   const membershipDate = (k: string, project: string): string | undefined => {
@@ -656,10 +711,19 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
   for (const v of ds.venues) {
     const k = nodeKey("venue", v.id);
     details.set(k, {
-      t: "venue", names: v.names, ...(v.city && cityNames.get(v.city) ? { city: cityNames.get(v.city) } : {}),
+      t: "venue", names: v.names, ...(v.city && nodes.has(nodeKey("city", v.city)) ? { city: nodeKey("city", v.city) } : {}),
       ...(v.external_ids && Object.keys(v.external_ids).length ? { externalIds: v.external_ids } : {}),
       stops: venueStops.get(k) ?? [],
+      ...(v.evidence && Object.keys(v.evidence).length ? { evidence: v.evidence } : {}),
     } satisfies VenueDetail);
+  }
+  for (const c of ds.cities) {
+    const k = nodeKey("city", c.id);
+    details.set(k, {
+      t: "city", names: c.names,
+      stops: (cityStops.get(k) ?? []).sort((a, b) => a.dates[0].localeCompare(b.dates[0]) || a.concert.localeCompare(b.concert)),
+      ...(c.evidence && Object.keys(c.evidence).length ? { evidence: c.evidence } : {}),
+    } satisfies CityDetail);
   }
 
   const out: GEdge[] = edgeList

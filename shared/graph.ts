@@ -12,8 +12,15 @@ import type { Copyright, EvidenceMap, Names, RecordingKind } from "./v1";
 
 export const GRAPH_FORMAT = 1;
 
-export const NODE_TYPES = ["project", "artist", "character", "person", "work", "release", "concert", "venue"] as const;
+export const NODE_TYPES = ["project", "artist", "character", "person", "work", "release", "concert", "venue", "city"] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
+
+/**
+ * The project of works and characters outside the Love Live! series (DESIGN.md §4.1, D50:
+ * THE IDOLM@STER songs at 異次元フェス, covers, 初音ミク). It is not drawn as a project hub:
+ * those nodes are marked `ext` and take the projects of what they are linked to.
+ */
+export const EXTERNAL_PROJECT = "external";
 
 /**
  * Fact edges come only from relation rows in the data (DESIGN.md §10.7). Direction is
@@ -31,7 +38,9 @@ export const FACT_RELATIONS = [
   "track", //          work → release              (a recording of the work is on the release)
   "release_artist", // artist | character | person → release (artist_credit)
   "setlist", //        work → concert              (performed at the concert)
+  "appearance", //     artist | character | person → concert (sang in its set lists)
   "venue", //          concert → venue
+  "city", //           venue → city
   "project", //        any → project               (own project field)
 ] as const;
 
@@ -84,6 +93,8 @@ export interface GNode {
   d?: string;
   /** release or concert status */
   st?: string;
+  /** outside the series (project `external`): no project hub, `p` from what it is linked to */
+  ext?: true;
   x: number;
   y: number;
   m: Metrics;
@@ -137,13 +148,21 @@ export interface GraphFile {
 export interface CreditRef {
   ref: string;
   affiliation?: string | Names;
+  /** ja prints the affiliation in full-width brackets, `名前（所属）` (D42) */
+  fullwidth?: true;
   role?: Names;
 }
 
-/** A performer. `ref` is a node key; `role` is the character key a person sings as (D29). */
+/**
+ * A performer. `ref` is a node key; `role` is the character key a person sings as (D29).
+ * `featured`: a guest printed after `feat.`; `joint`: one of the performers of a joint name,
+ * printed joined with `・` (D48).
+ */
 export interface PerformerRef {
   ref: string;
   role?: string;
+  featured?: true;
+  joint?: true;
 }
 
 export interface LinkRef {
@@ -177,9 +196,12 @@ export interface WorkAppearance {
 export interface WorkPerformance {
   concert: string;
   stop: string;
-  venue: string;
+  /** absent for an online-only show */
+  venue?: string;
   date: string;
   rec?: string;
+  /** the version sung: the linked recording's, or the set list's own (§4.6) */
+  version?: string;
 }
 
 export interface WorkDetail {
@@ -233,7 +255,7 @@ export interface PersonDetail {
   aliases: { text: string; kind: string; note?: string }[];
   distinctFrom: string[];
   /** affiliations this person is credited with, by work */
-  affiliations: { work: string; affiliation: string | Names }[];
+  affiliations: { work: string; affiliation: string | Names; fullwidth?: true }[];
   /** recordings arranged, by work and role (only where not every recording of the work is theirs) */
   arranged: { work: string; role: ArrangerRole; recs: string[] }[];
   /** roles sung as (D29) */
@@ -279,6 +301,8 @@ export interface SetlistEntry {
   type: string;
   work?: string;
   rec?: string;
+  /** the version sung: the linked recording's, or the set list's own (§4.6) */
+  version?: string;
   label?: string;
   titleRaw?: string;
   performers: PerformerRef[];
@@ -291,10 +315,12 @@ export interface ConcertDetail {
   projects: string[];
   stops: {
     id: string;
-    city: Names;
+    /** city and venue node keys; both absent for an online-only show (D47) */
+    city?: string;
     label?: string;
-    venue: string;
-    performances: { date: string; label?: string; setlist: SetlistEntry[] }[];
+    venue?: string;
+    /** fandom: the tab of the concert's Fandom page the set list is read from, `<section>|<tab>` */
+    performances: { date: string; label?: string; fandom?: string; setlist: SetlistEntry[] }[];
   }[];
   externalIds?: Record<string, string>;
   eventCode?: string;
@@ -304,13 +330,23 @@ export interface ConcertDetail {
 export interface VenueDetail {
   t: "venue";
   names: Names;
-  city?: Names;
+  /** city node key */
+  city?: string;
   externalIds?: Record<string, string>;
   stops: { concert: string; stop: string; dates: string[] }[];
+  evidence?: EvidenceMap;
+}
+
+export interface CityDetail {
+  t: "city";
+  names: Names;
+  /** concert stops held in the city, oldest first */
+  stops: { concert: string; stop: string; venue?: string; dates: string[] }[];
+  evidence?: EvidenceMap;
 }
 
 export type Detail =
   | WorkDetail | ReleaseDetail | PersonDetail | CharacterDetail | ArtistDetail | ProjectDetail
-  | ConcertDetail | VenueDetail;
+  | ConcertDetail | VenueDetail | CityDetail;
 
 export type DetailFile = Record<string, Detail>;

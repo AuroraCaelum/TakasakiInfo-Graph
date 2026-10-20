@@ -105,7 +105,7 @@ function Shell() {
   const model = useModel();
   useUrlSync(model);
   const f = useApp(useShallow((s) => ({
-    types: s.types, drama: s.drama, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
+    types: s.types, drama: s.drama, bgm: s.bgm, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
     time: s.time, selected: s.selected, focus: s.focus,
   })));
   const { pathOn, pathTo, pathHubs, selected, filtersOpen } = useApp(useShallow((s) => ({

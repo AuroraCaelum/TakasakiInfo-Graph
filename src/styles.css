@@ -365,7 +365,11 @@ h1, h2, h3, h4, h5 { margin: 0; }
 .kv dd { margin: 0; min-width: 0; word-break: break-word; }
 
 .chips { display: inline-flex; flex-wrap: wrap; gap: 2px 4px; align-items: center; }
-.chip-group { display: inline-flex; align-items: center; gap: 3px; }
+.chip-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; max-width: 100%; }
+.joint-sep { color: var(--muted); margin: 0 -1px; }
+.feat { color: var(--muted); font-size: 12px; font-style: italic; }
+.alias-list { display: inline-flex; flex-wrap: wrap; gap: 2px 10px; }
+.alias { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 
 .node-link {
   display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 1px 6px 1px 4px; border-radius: 6px;
@@ -421,6 +425,7 @@ details.more summary { font-size: 12px; color: var(--accent-ink); cursor: pointe
 .lineup { display: grid; gap: 4px; padding: 4px 0; }
 .lineup + .lineup { border-top: 1px dashed var(--grid); }
 .performance { padding: 2px 0; }
+.performance-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
 .setlist { counter-reset: song; display: grid; gap: 2px; padding: 4px 0 6px 6px; }
 .setlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12px; }
 .setlist li.song::before { counter-increment: song; content: counter(song); width: 20px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }

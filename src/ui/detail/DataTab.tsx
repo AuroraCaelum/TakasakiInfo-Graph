@@ -1,18 +1,19 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
 
 import type {
-  ArtistDetail, CharacterDetail, ConcertDetail, CreditRef, Detail, DetailFile, GNode, LinkRef, PerformerRef,
+  ArtistDetail, CharacterDetail, CityDetail, ConcertDetail, CreditRef, Detail, DetailFile, GNode, LinkRef, PerformerRef,
   PersonDetail, ProjectDetail, ReleaseDetail, VenueDetail, WorkDetail,
 } from "../../../shared/graph";
 import { ARRANGER_ROLES, NODE_TYPES, type ArrangerRole } from "../../../shared/graph";
 import type { Names } from "../../../shared/v1";
 import { useModel, usePalette, useT } from "../../context";
 import { Icon, TypeIcon } from "../../icons";
-import { chronological } from "../../lib/neighbors";
+import { fandomTab } from "../../lib/links";
+import { chronological, neighborsByRelation, type NeighborFact } from "../../lib/neighbors";
 import { nameOf } from "../../lib/names";
 import { loadDetails } from "../../model";
 import { useApp } from "../../store";
-import { Badge, EvidenceList, ExtLink, KV, More, NodeLink, PeriodText, Section, shortUrl } from "../common";
+import { Aliases, Badge, EvidenceList, ExtLink, KV, More, NodeLink, PeriodText, Section, shortUrl } from "../common";
 
 export function DataTab({ node, detail }: { node: GNode; detail: Detail }) {
   switch (detail.t) {
@@ -22,27 +23,43 @@ export function DataTab({ node, detail }: { node: GNode; detail: Detail }) {
     case "character": return <CharacterData node={node} detail={detail} />;
     case "artist": return <ArtistData node={node} detail={detail} />;
     case "project": return <ProjectData detail={detail} />;
-    case "concert": return <ConcertData detail={detail} />;
+    case "concert": return <ConcertData node={node} detail={detail} />;
     case "venue": return <VenueData detail={detail} />;
+    case "city": return <CityData node={node} detail={detail} />;
   }
 }
 
 // --- shared bits -------------------------------------------------------------------------------
+
+/** Facts of one relation, strongest first. */
+const neighborsOf = (model: ReturnType<typeof useModel>, key: string, r: NeighborFact["r"]) =>
+  neighborsByRelation(model, key).find(([rel]) => rel === r)?.[1] ?? [];
 
 function useNames() {
   const lang = useApp((s) => s.nameLang);
   return (n: Names | undefined, fallback = "") => nameOf(n, lang, fallback);
 }
 
+/** An affiliation in brackets: full-width in ja where the official page prints them so (D42). */
+function useAffiliation() {
+  const name = useNames();
+  const lang = useApp((s) => s.nameLang);
+  return (aff: string | Names, fullwidth?: boolean) => {
+    const text = typeof aff === "string" ? aff : name(aff);
+    return fullwidth && lang === "ja" ? `（${text}）` : `(${text})`;
+  };
+}
+
 function Credits({ list }: { list: CreditRef[] }) {
   const name = useNames();
+  const affiliation = useAffiliation();
   if (!list.length) return null;
   return (
     <span className="chips">
       {list.map((c, i) => (
         <span key={i} className="chip-group">
           <NodeLink k={c.ref} />
-          {c.affiliation && <span className="muted">({typeof c.affiliation === "string" ? c.affiliation : name(c.affiliation)})</span>}
+          {c.affiliation && <span className="muted">{affiliation(c.affiliation, c.fullwidth)}</span>}
           {c.role && <span className="muted">[{name(c.role)}]</span>}
         </span>
       ))}
@@ -50,18 +67,47 @@ function Credits({ list }: { list: CreditRef[] }) {
   );
 }
 
+/**
+ * Performers as the credit prints them (D48): the performers of a joint name joined with `・`
+ * (`Aqours・虹ヶ咲学園スクールアイドル同好会・Liella!`), guests after `feat.` (`Aqours feat. 初音ミク`).
+ */
 function Performers({ list }: { list: PerformerRef[] }) {
   if (!list.length) return null;
+  const groups: PerformerRef[][] = []; // a joint name is one group
+  for (const p of list.filter((x) => !x.featured)) {
+    const last = groups[groups.length - 1];
+    if (p.joint && last?.[0].joint) last.push(p);
+    else groups.push([p]);
+  }
+  const guests = list.filter((x) => x.featured);
+  const one = (p: PerformerRef) => (
+    <>
+      <NodeLink k={p.ref} />
+      {p.role && <span className="muted">→</span>}
+      {p.role && <NodeLink k={p.role} plain />}
+    </>
+  );
   return (
     <span className="chips">
-      {list.map((p, i) => (
+      {groups.map((g, i) => (
         <span key={i} className="chip-group">
-          <NodeLink k={p.ref} />
-          {p.role && <span className="muted">→</span>}
-          {p.role && <NodeLink k={p.role} plain />}
+          {g.map((p, j) => <Fragment key={j}>{j > 0 && <span className="joint-sep">・</span>}{one(p)}</Fragment>)}
         </span>
       ))}
+      {guests.length > 0 && <span className="feat">feat.</span>}
+      {guests.map((p, i) => <span key={`feat-${i}`} className="chip-group">{one(p)}</span>)}
     </span>
+  );
+}
+
+/** Concerts a node sang at (appearance edges), most performances first. */
+function Appearances({ list }: { list: NeighborFact[] }) {
+  const t = useT();
+  if (!list.length) return null;
+  return (
+    <Section title={`${t.rel.appearance} (${list.length})`} hint={`${t.weight}: ${t.relWeight.appearance}`}>
+      <DatedList items={list.map((f) => ({ k: f.k, d: f.d, extra: f.w > 1 ? <span className="muted small tabular">×{f.w}</span> : null }))} />
+    </Section>
   );
 }
 
@@ -125,13 +171,14 @@ function WorkData({ detail }: { detail: WorkDetail }) {
     <>
       <Section title={t.credits}>
         <KV rows={[
-          [t.rel.lyricist, <Credits list={detail.credits.lyricist} />],
-          [t.rel.composer, <Credits list={detail.credits.composer} />],
+          [t.rel.lyricist, detail.credits.lyricist.length ? <Credits list={detail.credits.lyricist} /> : null],
+          [t.rel.composer, detail.credits.composer.length ? <Credits list={detail.credits.composer} /> : null],
           [t.kind, t.workKind[detail.kind] ?? detail.kind],
         ]} />
       </Section>
 
       <Section title={`${t.recordings} (${detail.recordings.length})`}>
+        {detail.recordings.length === 0 && <p className="muted">{t.noRecordings}</p>}
         <div className="cards">
           {detail.recordings.map((r) => (
             <article key={r.id} className="card">
@@ -158,7 +205,7 @@ function WorkData({ detail }: { detail: WorkDetail }) {
         </div>
       </Section>
 
-      <Section title={`${t.appearances} (${detail.appearances.length})`}>
+      {detail.recordings.length > 0 && <Section title={`${t.appearances} (${detail.appearances.length})`}>
         {detail.appearances.length === 0 ? <p className="muted">{t.noData}</p> : (
           <ul className="dated-list">
             {detail.appearances.map((a) => (
@@ -179,7 +226,7 @@ function WorkData({ detail }: { detail: WorkDetail }) {
             ))}
           </ul>
         )}
-      </Section>
+      </Section>}
 
       {detail.performances.length > 0 && (
         <Section title={`${t.performances} (${detail.performances.length})`}>
@@ -188,6 +235,7 @@ function WorkData({ detail }: { detail: WorkDetail }) {
               <li key={i}>
                 <span className="date tabular">{p.date}</span>
                 <NodeLink k={p.concert} />
+                {(p.version ?? (p.rec && recTitle(p.rec))) && <Badge tone="muted">{p.version ?? recTitle(p.rec!)}</Badge>}
                 {p.venue && <NodeLink k={p.venue} plain />}
               </li>
             )} />
@@ -281,9 +329,8 @@ const isArranger = (r: string): r is ArrangerRole => (ARRANGER_ROLES as readonly
 function PersonData({ node, detail }: { node: GNode; detail: PersonDetail }) {
   const t = useT();
   const model = useModel();
-  const name = useNames();
-  const aff = (work: string) => detail.affiliations.filter((a) => a.work === work)
-    .map((a) => (typeof a.affiliation === "string" ? a.affiliation : name(a.affiliation))).join(", ");
+  const affiliation = useAffiliation();
+  const aff = (work: string) => detail.affiliations.filter((a) => a.work === work).map((a) => affiliation(a.affiliation, a.fullwidth)).join(" ");
   const roles = (["lyricist", "composer", ...ARRANGER_ROLES, "performer", "release_artist"] as const)
     .map((r) => [r, chronological(model, node.k, r)] as const).filter(([, list]) => list.length);
   return (
@@ -291,7 +338,7 @@ function PersonData({ node, detail }: { node: GNode; detail: PersonDetail }) {
       <Section title={t.tabs.data}>
         <KV rows={[
           [t.nativeScript, detail.nativeScript],
-          [t.aliases, detail.aliases.length ? detail.aliases.map((a) => `${a.text} (${a.kind})`).join(", ") : null],
+          [t.aliases, detail.aliases.some((a) => a.kind !== "misprint") ? <Aliases list={detail.aliases} /> : null],
           [t.distinctFrom, detail.distinctFrom.length ? <span className="chips">{detail.distinctFrom.map((k) => <NodeLink key={k} k={k} />)}</span> : null],
         ]} />
       </Section>
@@ -303,12 +350,13 @@ function PersonData({ node, detail }: { node: GNode; detail: PersonDetail }) {
               {isArranger(r) && detail.arranged.find((a) => a.work === f.k && a.role === r) && (
                 <span className="muted small">{detail.arranged.find((a) => a.work === f.k && a.role === r)!.recs.join(", ")}</span>
               )}
-              {(r === "lyricist" || r === "composer" || isArranger(r)) && aff(f.k) && <span className="muted small">({aff(f.k)})</span>}
+              {(r === "lyricist" || r === "composer" || isArranger(r)) && aff(f.k) && <span className="muted small">{aff(f.k)}</span>}
               {f.w > 1 && <span className="muted small tabular">×{f.w}</span>}
             </>,
           }))} />
         </Section>
       ))}
+      <Appearances list={chronological(model, node.k, "appearance")} />
       {chronological(model, node.k, "cv").length > 0 && (
         <Section title={t.casting}>
           <DatedList items={chronological(model, node.k, "cv").map((f) => ({
@@ -359,6 +407,7 @@ function CharacterData({ node, detail }: { node: GNode; detail: CharacterDetail 
       <Section title={`${t.rel.performer} (${sung.length})`}>
         <DatedList items={sung.map((f) => ({ k: f.k, d: f.d }))} />
       </Section>
+      <Appearances list={chronological(model, node.k, "appearance")} />
       {written.length > 0 && (
         <Section title={t.credits}>
           <DatedList items={written.map((f) => ({ k: f.k, d: f.d, extra: <Badge tone="muted">{t.rel[f.r]}</Badge> }))} />
@@ -406,6 +455,7 @@ function ArtistData({ node, detail }: { node: GNode; detail: ArtistDetail }) {
           <DatedList items={released.map((f) => ({ k: f.k, d: f.d }))} />
         </Section>
       )}
+      <Appearances list={chronological(model, node.k, "appearance")} />
     </>
   );
 }
@@ -449,10 +499,12 @@ function ProjectData({ detail }: { detail: ProjectDetail }) {
 
 // --- concert ---------------------------------------------------------------------------------
 
-function ConcertData({ detail }: { detail: ConcertDetail }) {
+function ConcertData({ node, detail }: { node: GNode; detail: ConcertDetail }) {
   const t = useT();
-  const name = useNames();
+  const model = useModel();
   const [open, setOpen] = useState<string | null>(null);
+  const page = detail.externalIds?.fandom;
+  const performers = neighborsOf(model, node.k, "appearance");
   return (
     <>
       <Section title={t.tabs.data}>
@@ -462,27 +514,49 @@ function ConcertData({ detail }: { detail: ConcertDetail }) {
           [t.eventCode, detail.eventCode ? <code>{detail.eventCode}</code> : null],
         ]} />
       </Section>
+      {performers.length > 0 && (
+        <Section title={`${t.rel.appearance} (${performers.length})`} hint={`${t.weight}: ${t.relWeight.appearance}`}>
+          <span className="chips">
+            <More items={performers} n={24} render={(f) => (
+              <span key={f.k} className="chip-group">
+                <NodeLink k={f.k} />
+                {f.w > 1 && <span className="muted small tabular">×{f.w}</span>}
+              </span>
+            )} />
+          </span>
+        </Section>
+      )}
       <Section title={`${t.stops} (${detail.stops.length})`}>
         {detail.stops.map((s) => (
           <article key={s.id} className="card">
             <header className="card-head">
-              <strong>{name(s.city, s.id)}{s.label ? ` (${s.label})` : ""}</strong>
+              {s.city ? <NodeLink k={s.city} /> : <Badge>{t.online}</Badge>}
+              {s.label && <strong>{s.label}</strong>}
               {s.venue && <NodeLink k={s.venue} plain />}
             </header>
-            {s.performances.map((p) => {
-              const id = `${s.id}/${p.date}`;
+            {s.performances.map((p, pi) => {
+              const id = `${s.id}/${pi}`; // two shows can share a date (Noon, Evening)
               const songs = p.setlist.filter((x) => x.work).length;
+              const tab = page && p.fandom ? fandomTab(page, p.fandom) : null;
               return (
-                <div key={p.date} className="performance">
-                  <button type="button" className="text-btn" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
-                    <span className="tabular">{p.date}</span>{p.label ? ` ${p.label}` : ""} · {t.setlist} {songs}
-                    <Icon name="chevron" size={12} className={open === id ? "rot-90" : ""} />
-                  </button>
+                <div key={id} className="performance">
+                  <div className="performance-head">
+                    <button type="button" className="text-btn" aria-expanded={open === id} onClick={() => setOpen(open === id ? null : id)}>
+                      <span className="tabular">{p.date}</span>{p.label ? ` ${p.label}` : ""} · {t.setlist} {songs}
+                      <Icon name="chevron" size={12} className={open === id ? "rot-90" : ""} />
+                    </button>
+                    {tab && (
+                      <a className="ext-link small muted" href={tab.url} target="_blank" rel="noopener noreferrer" title={`${t.fandomSetlist}: ${tab.label}`}>
+                        Fandom<Icon name="external" size={11} />
+                      </a>
+                    )}
+                  </div>
                   {open === id && (
                     <ol className="setlist">
                       {p.setlist.map((item, i) => (
                         <li key={i} className={item.work ? "song" : "marker"}>
                           {item.work ? <NodeLink k={item.work} /> : <span className="muted">{t.setlistType[item.type] ?? item.type}{item.label ? ` · ${item.label}` : ""}</span>}
+                          {item.version && <Badge tone="muted">{item.version}</Badge>}
                           {item.titleRaw && <span className="muted">{item.titleRaw}</span>}
                           {item.performers.length > 0 && <Performers list={item.performers} />}
                         </li>
@@ -503,11 +577,10 @@ function ConcertData({ detail }: { detail: ConcertDetail }) {
 
 function VenueData({ detail }: { detail: VenueDetail }) {
   const t = useT();
-  const name = useNames();
   return (
     <>
       <Section title={t.tabs.data}>
-        <KV rows={[[t.city, detail.city ? name(detail.city) : null]]} />
+        <KV rows={[[t.city, detail.city ? <NodeLink k={detail.city} /> : null]]} />
       </Section>
       <Section title={t.performances}>
         <ul className="dated-list">
@@ -519,6 +592,34 @@ function VenueData({ detail }: { detail: VenueDetail }) {
             </li>
           ))}
         </ul>
+      </Section>
+    </>
+  );
+}
+
+// --- city ------------------------------------------------------------------------------------
+
+function CityData({ node, detail }: { node: GNode; detail: CityDetail }) {
+  const t = useT();
+  const model = useModel();
+  const venues = chronological(model, node.k, "city");
+  return (
+    <>
+      <Section title={`${t.types.venue} (${venues.length})`}>
+        <DatedList items={venues.map((f) => ({ k: f.k, d: f.d }))} />
+      </Section>
+      <Section title={`${t.performances} (${detail.stops.length})`}>
+        {detail.stops.length ? (
+          <ul className="dated-list">
+            <More items={detail.stops} n={15} render={(s) => (
+              <li key={`${s.concert}/${s.stop}`}>
+                <span className="date tabular">{s.dates[0]}</span>
+                <NodeLink k={s.concert} />
+                {s.venue && <NodeLink k={s.venue} plain />}
+              </li>
+            )} />
+          </ul>
+        ) : <p className="muted">{t.noData}</p>}
       </Section>
     </>
   );

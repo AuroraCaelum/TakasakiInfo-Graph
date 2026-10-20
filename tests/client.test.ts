@@ -4,6 +4,7 @@ import { GRAPH_FORMAT, type GraphFile } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
 import { buildGraph } from "../scripts/lib/build-graph";
 import { personalizedPageRank, shortestPath, similarNodes } from "../src/lib/analysis";
+import { fandomTab, fandomUrl } from "../src/lib/links";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
 import { computeVisible, type VisibilityInput } from "../src/lib/visibility";
@@ -30,6 +31,11 @@ describe("visibility", () => {
     expect(v.nodes.has("work:alpha/d1")).toBe(false);
     expect(v.nodes.has("work:beta/unreleased")).toBe(true); // linked to its project
     expect(computeVisible(model, view({ drama: true })).nodes.has("work:alpha/d1")).toBe(true);
+  });
+
+  it("shows BGM works unless turned off", () => {
+    expect(computeVisible(model, view()).nodes.has("work:alpha/bgm1")).toBe(true);
+    expect(computeVisible(model, view({ bgm: false })).nodes.has("work:alpha/bgm1")).toBe(false);
   });
 
   it("at a date: only what exists by then, and the cast of that day", () => {
@@ -87,6 +93,21 @@ describe("analysis", () => {
   });
 });
 
+describe("links", () => {
+  it("builds Fandom URLs the way fandom.py does", () => {
+    expect(fandomUrl("Aqours First Love Live! ~Step! ZERO to ONE~"))
+      .toBe("https://love-live.fandom.com/wiki/Aqours_First_Love_Live!_~Step!_ZERO_to_ONE~");
+    expect(fandomUrl("Love Live! Days: A&B, C/D ♡")).toBe("https://love-live.fandom.com/wiki/Love_Live!_Days:_A&B,_C/D_%E2%99%A1");
+  });
+
+  it("points a show's tab at its section of the concert page", () => {
+    expect(fandomTab("Beta Fes", "OCEAN STAGE|Day 1")).toEqual({
+      url: "https://love-live.fandom.com/wiki/Beta_Fes#OCEAN_STAGE", label: "OCEAN STAGE › Day 1",
+    });
+    expect(fandomTab("Beta Fes", "|Day 2")).toEqual({ url: "https://love-live.fandom.com/wiki/Beta_Fes", label: "Day 2" });
+  });
+});
+
 describe("search", () => {
   const index = buildSearchIndex(model.list);
   it("ignores kana script, width and spacing", () => {
@@ -109,12 +130,13 @@ describe("url", () => {
   it("writes only what differs and reads it back", () => {
     const s: ViewState = {
       ...base, selected: "work:alpha/w1", tab: "related", focus: 2, colorBy: "community", projects: ["alpha"],
-      drama: true, time: "2023-01-01", relations: { ...base.relations, project: false, co_credit: true },
+      drama: true, bgm: false, time: "2023-01-01", relations: { ...base.relations, project: false, co_credit: true },
       types: { ...base.types, venue: false },
     };
     const q = toQuery(s, base);
     expect(q).toContain("n=work:alpha/w1");
     expect(q).toContain("r=-project,co_credit");
+    expect(q).toContain("bgm=0");
     expect(fromQuery(q, base, isNode)).toEqual(s);
     expect(toQuery(base, base)).toBe("");
   });

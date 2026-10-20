@@ -4,7 +4,7 @@ import {
   isDerived, NODE_TYPES,
   type Community, type DetailFile, type GEdge, type GNode, type GraphFile, type GraphMeta, type NodeType,
 } from "../shared/graph";
-import { pictogramUrl } from "./icons";
+import { pictogramOf, pictogramUrl, type Pictogram } from "./icons";
 import { PROJECT_ORDER } from "./theme";
 
 export interface NodeAttrs {
@@ -59,6 +59,7 @@ export function nodeSize(n: GNode): number {
     case "project": return 15;
     case "concert": return clamp(7 + s * 0.3, 7, 13);
     case "venue": return 4.5;
+    case "city": return clamp(5 + s * 0.4, 5, 10);
     case "artist": return clamp(4.5 + s * 0.45, 4.5, 13);
     case "character": return clamp(3.5 + s * 0.4, 3.5, 11);
     case "person": return clamp(2.2 + s * 0.5, 2.2, 13);
@@ -75,9 +76,10 @@ export const edgeKey = (derived: boolean, a: string, b: string) => {
 export function buildModel(file: GraphFile): Model {
   const nodes = new Map(file.nodes.map((n) => [n.k, n]));
   const graph = new Graph<NodeAttrs, EdgeAttrs>({ type: "undirected", multi: true, allowSelfLoops: false });
-  const images = Object.fromEntries(NODE_TYPES.map((t) => [t, pictogramUrl(t)])) as Record<NodeType, string>;
+  const images = new Map<Pictogram, string>();
+  const imageOf = (p: Pictogram) => images.get(p) ?? images.set(p, pictogramUrl(p)).get(p)!;
   for (const n of file.nodes) {
-    graph.addNode(n.k, { x: n.x, y: n.y, size: nodeSize(n), label: "", image: images[n.t], pictoColor: "#fff", color: "#888" });
+    graph.addNode(n.k, { x: n.x, y: n.y, size: nodeSize(n), label: "", image: imageOf(pictogramOf(n.t, n.s)), pictoColor: "#fff", color: "#888" });
   }
   for (const e of file.edges) {
     if (!nodes.has(e.s) || !nodes.has(e.t) || e.s === e.t) continue;

@@ -98,15 +98,23 @@ export interface Credit {
   person?: string;
   character?: string;
   affiliation?: string | Names;
+  /** the official page prints `名前（所属）` with full-width brackets: ja keeps them (D42) */
+  fullwidth?: boolean;
   role?: Names;
 }
 
-/** Exactly one of artist / character / person; `role` (a character id) only with person (D29). */
+/**
+ * Exactly one of artist / character / person; `role` (a character id) only with person (D29).
+ * A credit naming several performers as one (D48): a guest after `feat.` is `featured`, and the
+ * performers of a joint name (`A・B・C`, always next to each other) are each `joint`.
+ */
 export interface Performer {
   artist?: string;
   character?: string;
   person?: string;
   role?: string;
+  featured?: boolean;
+  joint?: boolean;
 }
 
 export interface WorkCredits {
@@ -131,7 +139,8 @@ export interface Recording {
   evidence?: EvidenceMap;
 }
 
-export type WorkKind = "song" | "drama" | "other";
+/** bgm: an anime soundtrack cue played at a concert (D50) */
+export type WorkKind = "song" | "bgm" | "drama" | "other";
 
 export interface Work {
   id: string;
@@ -199,6 +208,7 @@ export interface Release {
 export interface City {
   id: string;
   names: Names;
+  evidence?: EvidenceMap;
 }
 
 export interface Venue {
@@ -206,6 +216,7 @@ export interface Venue {
   city?: string;
   names: Names;
   external_ids?: Record<string, string>;
+  evidence?: EvidenceMap;
 }
 
 export type SetlistType = "song" | "mc" | "video" | "encore" | "double_encore" | "talk" | "other";
@@ -214,6 +225,8 @@ export interface SetlistItem {
   type?: SetlistType;
   work?: string;
   recording?: string;
+  /** the version sung when no recording of it is linked (§4.6) */
+  version?: string;
   performers?: Performer[];
   label?: string;
   title_raw?: string;
@@ -223,13 +236,16 @@ export interface Performance {
   date: string;
   label?: string;
   setlist?: SetlistItem[];
+  /** fandom: the set-list tab this show is read from, `<section>|<tab>` (D47) */
+  external_ids?: Record<string, string>;
 }
 
+/** An online-only show has neither city nor venue (D47). */
 export interface Stop {
   id: string;
-  city: string;
+  city?: string;
   label?: string;
-  venue: string;
+  venue?: string;
   performances: Performance[];
 }
 
@@ -253,7 +269,10 @@ export interface RefNames {
   ref: string;
   names?: Names;
   affiliation?: string | Names;
+  fullwidth?: boolean;
   role?: Names | RefNames;
+  featured?: boolean;
+  joint?: boolean;
 }
 
 export type LinkSource = "own" | "main" | "none";

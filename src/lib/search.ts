@@ -1,7 +1,7 @@
 /**
  * Search over every name of every node (ja, kana, rom, ko and person aliases).
  *
- * ~1,600 nodes is small enough to scan on every keystroke, which gives exact substring matches
+ * ~2,600 nodes is small enough to scan on every keystroke, which gives exact substring matches
  * in Japanese and Korean (no tokenizer needed) and ignores spacing, width and kana script:
  * `ゆうき`, `ユウキ` and `ﾕｳｷ` all match. Latin queries also tolerate a typo or two.
  */

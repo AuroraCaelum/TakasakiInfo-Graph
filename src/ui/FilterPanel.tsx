@@ -15,6 +15,7 @@ export function FilterPanel() {
   const projectName = useProjectName();
   const counts = model.meta.counts;
   const dramaCount = model.list.filter((n) => n.t === "work" && n.s === "drama").length;
+  const bgmCount = model.list.filter((n) => n.t === "work" && n.s === "bgm").length;
 
   const toggleRel = (r: Relation) => s.set({ relations: { ...s.relations, [r]: !s.relations[r] } });
   const projectOn = (id: string) => !s.projects || s.projects.includes(id);
@@ -57,11 +58,19 @@ export function FilterPanel() {
                 <span className="count">{(counts[type] ?? 0).toLocaleString()}</span>
               </label>
               {type === "work" && (
-                <label className="check sub">
-                  <input type="checkbox" checked={s.drama} disabled={!s.types.work} onChange={() => s.set({ drama: !s.drama })} />
-                  <span className="check-label">{t.includeDrama}</span>
-                  <span className="count">{dramaCount.toLocaleString()}</span>
-                </label>
+                <>
+                  <label className="check sub">
+                    <input type="checkbox" checked={s.bgm} disabled={!s.types.work} onChange={() => s.set({ bgm: !s.bgm })} />
+                    <TypeIcon type="work" sub="bgm" size={15} style={{ color: p.type.work }} />
+                    <span className="check-label">{t.includeBgm}</span>
+                    <span className="count">{bgmCount.toLocaleString()}</span>
+                  </label>
+                  <label className="check sub">
+                    <input type="checkbox" checked={s.drama} disabled={!s.types.work} onChange={() => s.set({ drama: !s.drama })} />
+                    <span className="check-label">{t.includeDrama}</span>
+                    <span className="count">{dramaCount.toLocaleString()}</span>
+                  </label>
+                </>
               )}
             </div>
           ))}

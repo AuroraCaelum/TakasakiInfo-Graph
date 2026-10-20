@@ -7,6 +7,7 @@ export function subtypeLabel(t: Dict, n: GNode): string {
   if (n.t === "release" && n.s) parts.push(t.releaseType[n.s] ?? n.s);
   if (n.t === "work" && n.s && n.s !== "song") parts.push(t.workKind[n.s] ?? n.s);
   if (n.t === "artist" && n.s) parts.push(t.artistKind[n.s] ?? n.s);
+  if (n.ext) parts.push(t.external);
   if (n.st === "announced") parts.push(t.status.announced);
   return parts.join(" · ");
 }

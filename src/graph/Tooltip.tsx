@@ -21,7 +21,7 @@ export function NodeTip({ node, x, y }: { node: GNode; x: number; y: number }) {
   return (
     <div className="tip" style={place(x, y)} role="tooltip">
       <div className="tip-type">
-        <TypeIcon type={node.t} size={14} style={{ color: p.type[node.t] }} />
+        <TypeIcon type={node.t} sub={node.s} size={14} style={{ color: p.type[node.t] }} />
         <span>{t.types[node.t]}</span>
         {sub && <span className="muted">· {sub}</span>}
       </div>

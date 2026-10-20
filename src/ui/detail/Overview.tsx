@@ -1,8 +1,9 @@
 import type { Detail, GNode } from "../../../shared/graph";
 import type { Names } from "../../../shared/v1";
 import { useModel, useT } from "../../context";
+import { fandomUrl } from "../../lib/links";
 import { useApp } from "../../store";
-import { Badge, EvidenceList, ExtLink, KV, NodeLink, Section, shortUrl } from "../common";
+import { Aliases, Badge, EvidenceList, ExtLink, KV, NodeLink, Section, shortUrl } from "../common";
 
 const LANG_LABEL: Record<keyof Names, string> = { ja: "ja", kana: "kana", rom: "rom", ko: "ko" };
 
@@ -12,9 +13,13 @@ function NamesTable({ names }: { names: Names }) {
   );
 }
 
+/** A name part (family or given) in every script: `ja (kana) / rom / ko`. */
+const partText = (n: Names) => [n.ja && (n.kana && n.kana !== n.ja ? `${n.ja} (${n.kana})` : n.ja), n.rom, n.ko].filter(Boolean).join(" / ");
+
 /** Every external link the entity has, in one list. */
 function linksOf(detail: Detail | undefined): { key: string; url: string }[] {
   if (!detail) return [];
+  const fandom = "externalIds" in detail && detail.externalIds?.fandom ? [{ key: "fandom", url: fandomUrl(detail.externalIds.fandom) }] : [];
   switch (detail.t) {
     case "release":
       return [
@@ -25,10 +30,10 @@ function linksOf(detail: Detail | undefined): { key: string; url: string }[] {
       return Object.entries(detail.official).map(([key, url]) => ({ key, url }));
     case "work": {
       const main = detail.recordings.find((r) => r.mainLink && r.kind !== "off_vocal")?.mainLink;
-      return main ? [{ key: "youtube_music", url: main }] : [];
+      return [...(main ? [{ key: "youtube_music", url: main }] : []), ...fandom];
     }
     default:
-      return [];
+      return fandom;
   }
 }
 
@@ -46,16 +51,16 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
         <NamesTable names={node.n} />
         {parts && (parts.familyName || parts.givenName) && (
           <KV rows={[
-            [t.familyName, parts.familyName && [parts.familyName.ja, parts.familyName.rom, parts.familyName.ko].filter(Boolean).join(" / ")],
-            [t.givenName, parts.givenName && [parts.givenName.ja, parts.givenName.rom, parts.givenName.ko].filter(Boolean).join(" / ")],
+            [t.familyName, parts.familyName && partText(parts.familyName)],
+            [t.givenName, parts.givenName && partText(parts.givenName)],
           ]} />
         )}
-        {detail?.t === "person" && detail.aliases.length > 0 && (
-          <KV rows={[[t.aliases, detail.aliases.map((a) => `${a.text} (${a.kind})`).join(", ")]]} />
+        {detail?.t === "person" && detail.aliases.some((a) => a.kind !== "misprint") && (
+          <KV rows={[[t.aliases, <Aliases list={detail.aliases} />]]} />
         )}
       </Section>
 
-      <Section title={t.tabs.overview}>
+      <Section title={t.tabs.overview} hint={node.ext ? t.externalHint : undefined}>
         <KV rows={[
           [t.firstSeen, node.d ? <span className="tabular">{node.d}</span> : <span className="muted">{t.undated}</span>],
           [t.statusLabel, node.st ? <Badge>{t.status[node.st] ?? node.st}</Badge> : null],

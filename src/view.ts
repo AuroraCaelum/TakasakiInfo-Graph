@@ -10,6 +10,8 @@ export type Tab = "overview" | "data" | "neighbors" | "related";
 export interface Filters {
   types: Record<NodeType, boolean>;
   drama: boolean;
+  /** BGM works (soundtrack cues played live, D50) */
+  bgm: boolean;
   /** null = every project */
   projects: string[] | null;
   relations: Record<Relation, boolean>;
@@ -35,6 +37,7 @@ export interface ViewState extends Filters {
 export const DEFAULT_FILTERS: Filters = {
   types: Object.fromEntries(NODE_TYPES.map((t) => [t, true])) as Record<NodeType, boolean>,
   drama: false,
+  bgm: true,
   projects: null,
   relations: {
     ...(Object.fromEntries(FACT_RELATIONS.map((r) => [r, true])) as Record<Relation, boolean>),

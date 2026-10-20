@@ -6,7 +6,9 @@
  * light and dark steps. A node-link map is an all-pairs form, where only three slots stay
  * distinct for every reader, so the three most numerous types (song, person, release; ~90% of
  * nodes) take slots 1-3. The other types also carry a pictogram, a type label in the tooltip,
- * and a legend that isolates them on hover: color is never the only cue.
+ * and a legend that isolates them on hover: color is never the only cue. With slot 7 (violet)
+ * kept for derived edges, the slots run out at cities: they fold into the neutral gray rather
+ * than a generated ninth hue, and their pictogram tells them apart.
  */
 
 import type { NodeType } from "../shared/graph";
@@ -20,20 +22,22 @@ const SLOTS: Record<ThemeMode, string[]> = {
 };
 
 /** Fixed slot per node type: identity never depends on what is filtered. */
-const TYPE_SLOT: Record<Exclude<NodeType, "project">, number> = {
+const TYPE_SLOT: Record<Exclude<NodeType, "project" | "city">, number> = {
   work: 0, person: 1, release: 2, character: 3, artist: 4, venue: 5, concert: 7,
 };
+
+const NEUTRAL = "#898781";
 
 /**
  * Fixed slot per project, by id, so a project keeps its color across data updates.
  * Projects not listed here fold into "other" (gray) rather than generating a ninth hue.
  */
 export const PROJECT_SLOT: Record<string, number> = {
-  nijigasaki: 0, aqours: 1, hasunosora: 2, liella: 3, ikizulive: 4, musical: 5, muse: 6, external: 7,
+  nijigasaki: 0, aqours: 1, hasunosora: 2, liella: 3, ikizulive: 4, musical: 5, muse: 6, yohane: 7,
 };
 
 /** Display order of projects (filters, legend); ids not listed follow, alphabetically. */
-export const PROJECT_ORDER = ["muse", "aqours", "nijigasaki", "liella", "musical", "hasunosora", "ikizulive", "external"];
+export const PROJECT_ORDER = ["muse", "aqours", "nijigasaki", "liella", "musical", "hasunosora", "yohane", "ikizulive"];
 
 export const COMMUNITY_COLORS = 8;
 
@@ -78,6 +82,7 @@ export function palette(mode: ThemeMode): Palette {
   const surface = light ? "#fcfcfb" : "#1a1a19";
   const type = Object.fromEntries(Object.entries(TYPE_SLOT).map(([t, i]) => [t, slots[i]])) as Record<NodeType, string>;
   type.project = ink;
+  type.city = NEUTRAL;
   const picto = Object.fromEntries(Object.keys(type).map((t) => [t, "#ffffff"])) as Record<NodeType, string>;
   picto.project = surface;
   return {
@@ -93,7 +98,7 @@ export function palette(mode: ThemeMode): Palette {
     edgeStrong: glAlpha(ink, light ? 0.55 : 0.6),
     derived: glAlpha(slots[6], 0.3),
     derivedStrong: glAlpha(slots[6], 0.9),
-    other: "#898781",
+    other: NEUTRAL,
     slots,
     type,
     picto,

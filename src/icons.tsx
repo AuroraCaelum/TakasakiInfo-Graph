@@ -1,13 +1,19 @@
 /**
  * One pictogram per node type: drawn inside graph nodes (as a texture) and next to names in
- * the UI, so a node's type never rests on color alone.
+ * the UI, so a node's type never rests on color alone. BGM works (a soundtrack cue played
+ * live, D50) are works with a pictogram of their own.
  */
 
 import type { SVGProps } from "react";
 
 import type { NodeType } from "../shared/graph";
 
-const TYPE_PATHS: Record<NodeType, string> = {
+export type Pictogram = NodeType | "bgm";
+
+/** The pictogram of a node: its type's, or for a BGM work the BGM one. */
+export const pictogramOf = (t: NodeType, sub?: string): Pictogram => (t === "work" && sub === "bgm" ? "bgm" : t);
+
+const TYPE_PATHS: Record<Pictogram, string> = {
   project: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
   artist: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>',
   character: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
@@ -16,21 +22,24 @@ const TYPE_PATHS: Record<NodeType, string> = {
   release: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>',
   concert: '<rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/>',
   venue: '<path d="M12 21s-7-5.6-7-11a7 7 0 0 1 14 0c0 5.4-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  city: '<path d="M3 21h18"/><path d="M5 21V4h8v17"/><path d="M13 21V10h6v11"/><path d="M8.5 8h1M8.5 12h1M8.5 16h1M15.5 14h1M15.5 17.5h1"/>',
+  bgm: '<path d="M4 10v4M8 6v12M12 3v18M16 7v10M20 10v4"/>',
 };
 
 const svg = (inner: string, stroke: string, width: number) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96" fill="none" stroke="${stroke}" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${inner}</svg>`;
 
 /** Data URL of the white pictogram, recolored by the node program (`drawingMode: "color"`). */
-export function pictogramUrl(t: NodeType): string {
+export function pictogramUrl(t: Pictogram): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg(TYPE_PATHS[t], "#ffffff", 2.6))}`;
 }
 
-export function TypeIcon({ type, size = 16, ...rest }: { type: NodeType; size?: number } & SVGProps<SVGSVGElement>) {
+/** A node type's pictogram; `sub` (the node's subtype) picks the BGM one for BGM works. */
+export function TypeIcon({ type, sub, size = 16, ...rest }: { type: NodeType; sub?: string; size?: number } & SVGProps<SVGSVGElement>) {
   return (
     <svg
       viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2}
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: TYPE_PATHS[type] }}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: TYPE_PATHS[pictogramOf(type, sub)] }}
       {...rest}
     />
   );
