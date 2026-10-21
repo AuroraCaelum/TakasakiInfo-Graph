@@ -9,7 +9,7 @@ import type { Visible } from "../lib/visibility";
 import { useApp } from "../store";
 import { COMMUNITY_COLORS, communityColor, projectColor } from "../theme";
 
-interface Entry {
+export interface LegendEntry {
   id: string;
   label: string;
   color: string;
@@ -18,13 +18,44 @@ interface Entry {
   off?: boolean;
 }
 
+/** The classes of the current color mode: node types (which toggle), projects or communities. */
+export function useLegendEntries(): LegendEntry[] {
+  const t = useT();
+  const p = usePalette();
+  const model = useModel();
+  const s = useApp();
+  if (s.colorBy === "type") {
+    return NODE_TYPES.map((type) => ({
+      id: `type:${type}`, label: t.types[type], color: p.type[type], icon: type, off: !s.types[type],
+      onClick: () => s.set({ types: { ...s.types, [type]: !s.types[type] } }),
+    }));
+  }
+  if (s.colorBy === "project") {
+    return [
+      ...model.projects.map((id) => ({
+        id: `project:${id}`, label: nameOf(model.nodes.get(`project:${id}`)?.n, s.nameLang, id), color: projectColor(p, [id]),
+      })),
+      { id: "project:_multi", label: t.multiProject, color: p.other },
+      { id: "project:_none", label: t.noProject, color: p.other },
+    ];
+  }
+  return [
+    ...model.communities.slice(0, COMMUNITY_COLORS).map((c) => ({
+      id: `community:${c.id}`,
+      label: `${c.id + 1}. ${c.top.slice(0, 2).map((k) => nameOf(model.nodes.get(k)?.n, s.nameLang, k)).join(", ")}`,
+      color: communityColor(p, c.id),
+    })),
+    { id: "community:_other", label: t.otherCommunity, color: p.other },
+  ];
+}
+
 export function Legend({ visible }: { visible: Visible }) {
   const t = useT();
   const p = usePalette();
   const model = useModel();
   const s = useApp();
-  // folded on phones, where it would cover much of the map
-  const [open, setOpen] = useState(() => window.innerWidth > 820);
+  const entries = useLegendEntries();
+  const [open, setOpen] = useState(true);
 
   const counts = useMemo(() => {
     const c = new Map<string, number>();
@@ -35,30 +66,6 @@ export function Legend({ visible }: { visible: Visible }) {
     return c;
   }, [visible, model, s.colorBy]);
 
-  let entries: Entry[];
-  if (s.colorBy === "type") {
-    entries = NODE_TYPES.map((type) => ({
-      id: `type:${type}`, label: t.types[type], color: p.type[type], icon: type, off: !s.types[type],
-      onClick: () => s.set({ types: { ...s.types, [type]: !s.types[type] } }),
-    }));
-  } else if (s.colorBy === "project") {
-    entries = [
-      ...model.projects.map((id) => ({
-        id: `project:${id}`, label: nameOf(model.nodes.get(`project:${id}`)?.n, s.nameLang, id), color: projectColor(p, [id]),
-      })),
-      { id: "project:_multi", label: t.multiProject, color: p.other },
-      { id: "project:_none", label: t.noProject, color: p.other },
-    ];
-  } else {
-    entries = [
-      ...model.communities.slice(0, COMMUNITY_COLORS).map((c) => ({
-        id: `community:${c.id}`,
-        label: `${c.id + 1}. ${c.top.slice(0, 2).map((k) => nameOf(model.nodes.get(k)?.n, s.nameLang, k)).join(", ")}`,
-        color: communityColor(p, c.id),
-      })),
-      { id: "community:_other", label: t.otherCommunity, color: p.other },
-    ];
-  }
   const derivedOn = Object.entries(s.relations).some(([r, on]) => on && ["co_credit", "co_perform", "shared_member"].includes(r));
 
   return (

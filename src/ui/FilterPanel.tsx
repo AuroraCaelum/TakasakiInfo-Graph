@@ -1,11 +1,30 @@
-import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES, type Relation } from "../../shared/graph";
+import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { Icon, TypeIcon } from "../icons";
 import { useApp } from "../store";
 import type { ColorBy } from "../view";
 import { useProjectName } from "./common";
 
-const COLOR_MODES: ColorBy[] = ["type", "project", "community"];
+export const COLOR_MODES: ColorBy[] = ["type", "project", "community"];
+
+/** Filter toggles shared by the side panel and the phone's filter sheet. */
+export function useFilterToggles() {
+  const model = useModel();
+  const s = useApp();
+  return {
+    toggleType: (type: NodeType) => s.set({ types: { ...s.types, [type]: !s.types[type] } }),
+    toggleRel: (r: Relation) => s.set({ relations: { ...s.relations, [r]: !s.relations[r] } }),
+    projectOn: (id: string) => !s.projects || s.projects.includes(id),
+    toggleProject: (id: string) => {
+      const cur = s.projects ?? model.projects;
+      const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+      s.set({ projects: next.length === model.projects.length ? null : next });
+    },
+    /** works that are drama tracks and BGM cues, which have their own toggles */
+    dramaCount: model.list.filter((n) => n.t === "work" && n.s === "drama").length,
+    bgmCount: model.list.filter((n) => n.t === "work" && n.s === "bgm").length,
+  };
+}
 
 export function FilterPanel() {
   const t = useT();
@@ -14,16 +33,7 @@ export function FilterPanel() {
   const s = useApp();
   const projectName = useProjectName();
   const counts = model.meta.counts;
-  const dramaCount = model.list.filter((n) => n.t === "work" && n.s === "drama").length;
-  const bgmCount = model.list.filter((n) => n.t === "work" && n.s === "bgm").length;
-
-  const toggleRel = (r: Relation) => s.set({ relations: { ...s.relations, [r]: !s.relations[r] } });
-  const projectOn = (id: string) => !s.projects || s.projects.includes(id);
-  const toggleProject = (id: string) => {
-    const cur = s.projects ?? model.projects;
-    const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
-    s.set({ projects: next.length === model.projects.length ? null : next });
-  };
+  const { toggleType, toggleRel, projectOn, toggleProject, dramaCount, bgmCount } = useFilterToggles();
 
   return (
     <aside className={`filters${s.filtersOpen ? " open" : ""}`} aria-label={t.filters}>
@@ -52,7 +62,7 @@ export function FilterPanel() {
           {NODE_TYPES.map((type) => (
             <div key={type}>
               <label className="check">
-                <input type="checkbox" checked={s.types[type]} onChange={() => s.set({ types: { ...s.types, [type]: !s.types[type] } })} />
+                <input type="checkbox" checked={s.types[type]} onChange={() => toggleType(type)} />
                 <TypeIcon type={type} size={15} style={{ color: p.type[type] }} />
                 <span className="check-label">{t.types[type]}</span>
                 <span className="count">{(counts[type] ?? 0).toLocaleString()}</span>

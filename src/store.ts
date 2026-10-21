@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { DEFAULT_NAME_LANG, detectUiLang } from "./i18n";
+import { DEFAULT_NAME_LANG, detectUiLang, type NameLang, type UiLang } from "./i18n";
 import { cloneFilters, type ThemeChoice, type ViewState } from "./view";
 
 export interface AppState extends ViewState {
@@ -62,3 +62,22 @@ export const useApp = create<AppState>((set) => ({
   })),
   resetFilters: () => set({ ...cloneFilters(), time: null }),
 }));
+
+/** Remembered choices of the viewer: the top bar and the phone menu both set them. */
+export function chooseUiLang(ui: UiLang): void {
+  remember("tg.ui", ui);
+  const s = useApp.getState();
+  // names follow the UI language unless the viewer chose a script of their own
+  const followed = s.nameLang === DEFAULT_NAME_LANG[s.uiLang];
+  s.set({ uiLang: ui, ...(followed ? { nameLang: DEFAULT_NAME_LANG[ui] } : {}) });
+}
+
+export function chooseNameLang(l: NameLang): void {
+  remember("tg.names", l);
+  useApp.getState().set({ nameLang: l });
+}
+
+export function chooseTheme(theme: ThemeChoice): void {
+  remember("tg.theme", theme);
+  useApp.getState().set({ theme });
+}

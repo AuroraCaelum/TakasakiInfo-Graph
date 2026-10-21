@@ -5,7 +5,7 @@ import { ModelContext, PaletteContext, useModel, useNode, useT } from "./context
 import { DICTS } from "./i18n";
 import { GraphView } from "./graph/GraphView";
 import { Icon } from "./icons";
-import { shortestPath } from "./lib/analysis";
+import { shortestPath, type PathResult } from "./lib/analysis";
 import { nameOf } from "./lib/names";
 import { fromQuery, toQuery } from "./lib/url";
 import { computeVisible, type Visible } from "./lib/visibility";
@@ -16,29 +16,34 @@ import { About } from "./ui/About";
 import { DetailPanel } from "./ui/detail/DetailPanel";
 import { FilterPanel } from "./ui/FilterPanel";
 import { Legend } from "./ui/Legend";
+import { MobileShell } from "./ui/mobile/MobileShell";
 import { PathPanel } from "./ui/PathPanel";
 import { TimeBar } from "./ui/TimeBar";
 import { TopBar } from "./ui/TopBar";
 
 const isNodeIn = (model: Model) => (k: string) => model.nodes.has(k);
 
-function useSystemDark(): boolean {
-  const [dark, setDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+function useMedia(query: string): boolean {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const on = (e: MediaQueryListEvent) => setDark(e.matches);
+    const mq = window.matchMedia(query);
+    const on = (e: MediaQueryListEvent) => setMatch(e.matches);
+    setMatch(mq.matches);
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
-  }, []);
-  return dark;
+  }, [query]);
+  return match;
 }
+
+/** Phones get their own layout (graph above, node below, tabs at the bottom), not a shrunk desktop. */
+const PHONE = "(max-width: 820px)";
 
 export function App() {
   const [model, setModel] = useState<Model | null>(null);
   const [error, setError] = useState<string | null>(null);
   const theme = useApp((s) => s.theme);
   const uiLang = useApp((s) => s.uiLang);
-  const systemDark = useSystemDark();
+  const systemDark = useMedia("(prefers-color-scheme: dark)");
   const mode = theme === "system" ? (systemDark ? "dark" : "light") : theme;
   const palette = useMemo(() => makePalette(mode), [mode]);
   const t = DICTS[uiLang];
@@ -104,19 +109,14 @@ function useUrlSync(model: Model) {
 function Shell() {
   const model = useModel();
   useUrlSync(model);
+  const phone = useMedia(PHONE);
   const f = useApp(useShallow((s) => ({
     types: s.types, drama: s.drama, bgm: s.bgm, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
     time: s.time, selected: s.selected, focus: s.focus,
   })));
-  const { pathOn, pathTo, pathHubs, selected, filtersOpen } = useApp(useShallow((s) => ({
-    pathOn: s.pathOn, pathTo: s.pathTo, pathHubs: s.pathHubs, selected: s.selected, filtersOpen: s.filtersOpen,
+  const { pathOn, pathTo, pathHubs, selected } = useApp(useShallow((s) => ({
+    pathOn: s.pathOn, pathTo: s.pathTo, pathHubs: s.pathHubs, selected: s.selected,
   })));
-  const set = useApp((s) => s.set);
-  const [about, setAbout] = useState(false);
-
-  useEffect(() => {
-    if (window.innerWidth >= 1280) set({ filtersOpen: true });
-  }, [set]);
 
   const visible = useMemo(() => computeVisible(model, f), [model, f]);
   const unfocused = useMemo(() => (f.focus ? computeVisible(model, { ...f, focus: 0 }) : visible), [model, f, visible]);
@@ -124,6 +124,19 @@ function Shell() {
     () => (pathOn && selected && pathTo ? shortestPath(model, unfocused, selected, pathTo, pathHubs) : null),
     [model, unfocused, pathOn, selected, pathTo, pathHubs],
   );
+
+  return phone ? <MobileShell visible={visible} path={path} /> : <DesktopShell visible={visible} path={path} />;
+}
+
+function DesktopShell({ visible, path }: { visible: Visible; path: PathResult | null }) {
+  const selected = useApp((s) => s.selected);
+  const filtersOpen = useApp((s) => s.filtersOpen);
+  const set = useApp((s) => s.set);
+  const [about, setAbout] = useState(false);
+
+  useEffect(() => {
+    if (window.innerWidth >= 1280) set({ filtersOpen: true });
+  }, [set]);
 
   return (
     <div className={`app${selected ? " has-detail" : ""}${filtersOpen ? " has-filters" : ""}`}>

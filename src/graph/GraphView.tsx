@@ -29,6 +29,8 @@ interface RenderState {
   nameLang: NameLang;
   colorBy: ColorBy;
   selected: string | null;
+  /** a node the shell points at, such as a path step: ringed and labelled */
+  active: string | null;
   hovered: string | null;
   nodes: Set<string> | null;
   edges: Set<string> | null;
@@ -36,12 +38,29 @@ interface RenderState {
 
 type Tip = { kind: "node"; key: string; x: number; y: number } | { kind: "edge"; key: string; x: number; y: number };
 
+/** Pixels at the top and bottom of the stage that controls float over. */
+export interface Inset {
+  top: number;
+  bottom: number;
+}
+
+const NO_INSET: Inset = { top: 0, bottom: 0 };
+
 interface Props {
   visible: Visible;
   path: PathResult | null;
+  /** phones: taps without hover (no tips or hover highlight) and one fit button for the zoom controls */
+  compact?: boolean;
+  /** a node to center and ring, such as a path step; while it is null a path is framed whole */
+  active?: string | null;
+  /** replace the default taps: a node selects it, the stage clears the selection */
+  onNodeTap?: (key: string) => void;
+  onStageTap?: () => void;
+  /** the camera frames nodes in the part of the stage these controls leave uncovered */
+  inset?: Inset;
 }
 
-export function GraphView({ visible, path }: Props) {
+export function GraphView({ visible, path, compact = false, active = null, onNodeTap, onStageTap, inset = NO_INSET }: Props) {
   const model = useModel();
   const palette = usePalette();
   const t = useT();
@@ -50,6 +69,9 @@ export function GraphView({ visible, path }: Props) {
   const clicked = useRef<string | null>(null);
   const [tip, setTip] = useState<Tip | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  // the sigma handlers are bound once; they read the current props through this
+  const props = useRef({ compact, onNodeTap, onStageTap, inset });
+  props.current = { compact, onNodeTap, onStageTap, inset };
 
   const nameLang = useApp((s) => s.nameLang);
   const colorBy = useApp((s) => s.colorBy);
@@ -58,7 +80,7 @@ export function GraphView({ visible, path }: Props) {
   const legendHover = useApp((s) => s.legendHover);
 
   const state = useRef<RenderState>({
-    visible, palette, nameLang, colorBy, selected, hovered: null, nodes: null, edges: null,
+    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null,
   });
 
   // --- sigma instance ------------------------------------------------------------------------
@@ -155,6 +177,10 @@ export function GraphView({ visible, path }: Props) {
           res.forceLabel = true;
           res.size = data.size * 1.35 + 2;
           res.zIndex = 3;
+        } else if (key === s.active) {
+          res.highlighted = true;
+          res.forceLabel = true;
+          res.zIndex = 3;
         }
         return res;
       },
@@ -187,20 +213,27 @@ export function GraphView({ visible, path }: Props) {
 
     sigma.on("clickNode", ({ node }) => {
       clicked.current = node;
-      useApp.getState().select(node);
+      const { onNodeTap } = props.current;
+      if (onNodeTap) onNodeTap(node);
+      else useApp.getState().select(node);
     });
     sigma.on("doubleClickNode", ({ node, preventSigmaDefault }) => {
       preventSigmaDefault();
+      if (props.current.onNodeTap) return; // the shell owns the taps: the first one was enough
       clicked.current = node;
       const app = useApp.getState();
       app.select(node);
       app.set({ focus: app.focus || 1, pathOn: false });
     });
     sigma.on("clickStage", () => {
+      const { onStageTap } = props.current;
+      if (onStageTap) return onStageTap();
       const app = useApp.getState();
       if (app.selected) app.select(null);
     });
+    // a touch "enters" the node it lands on: on phones that would leave a tip and a highlight behind
     sigma.on("enterNode", ({ node, event }) => {
+      if (props.current.compact) return;
       el.style.cursor = "pointer";
       setHovered(node);
       setTip({ kind: "node", key: node, x: event.x, y: event.y });
@@ -210,7 +243,9 @@ export function GraphView({ visible, path }: Props) {
       setHovered(null);
       setTip(null);
     });
-    sigma.on("enterEdge", ({ edge, event }) => setTip({ kind: "edge", key: edge, x: event.x, y: event.y }));
+    sigma.on("enterEdge", ({ edge, event }) => {
+      if (!props.current.compact) setTip({ kind: "edge", key: edge, x: event.x, y: event.y });
+    });
     sigma.on("leaveEdge", () => setTip((x) => (x?.kind === "edge" ? null : x)));
     sigma.getCamera().on("updated", () => setTip(null));
 
@@ -231,6 +266,7 @@ export function GraphView({ visible, path }: Props) {
     s.nameLang = nameLang;
     s.colorBy = colorBy;
     s.selected = selected && visible.nodes.has(selected) ? selected : null;
+    s.active = active;
     s.hovered = hovered;
     s.nodes = null;
     s.edges = null;
@@ -259,7 +295,7 @@ export function GraphView({ visible, path }: Props) {
     // label, so the label grid only has to place the highlighted ones without overlap)
     sigmaRef.current?.setSetting("labelRenderedSizeThreshold", s.nodes ? 0 : 8);
     sigmaRef.current?.refresh();
-  }, [model, visible, palette, nameLang, colorBy, selected, hovered, legendHover, path]);
+  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, path]);
 
   // --- camera: fly to a node selected outside the graph ----------------------------------------
   useEffect(() => {
@@ -267,23 +303,26 @@ export function GraphView({ visible, path }: Props) {
     if (!sigma || !selected || focus || useApp.getState().pathTo) return;
     if (clicked.current === selected) return;
     clicked.current = null;
-    const go = () => {
-      const d = sigma.getNodeDisplayData(selected);
-      if (!d) return;
-      const cam = sigma.getCamera();
-      cam.animate({ x: d.x, y: d.y, ratio: Math.min(cam.getState().ratio, 0.35) }, { duration: 600 });
-    };
-    requestAnimationFrame(go);
+    requestAnimationFrame(() => flyTo(sigma, selected, props.current.inset));
   }, [selected, focus]);
 
-  // --- camera: frame a found path ------------------------------------------------------------
+  // --- camera: center the active node (a path step), else frame a found path -------------------
   const pathKey = path && path.nodes.length > 1 ? path.nodes.join("|") : null;
+  const framedPath = useRef(false);
   useEffect(() => {
     const sigma = sigmaRef.current;
-    if (!sigma || !pathKey) return;
-    const id = requestAnimationFrame(() => fitTo(sigma, pathKey.split("|")));
+    if (!sigma) return;
+    const { inset } = props.current;
+    const app = useApp.getState();
+    let go: (() => void) | null = null;
+    if (active) go = () => flyTo(sigma, active, inset);
+    else if (pathKey) go = () => fitTo(sigma, pathKey.split("|"), inset);
+    else if (framedPath.current && app.selected && !app.focus) go = () => flyTo(sigma, app.selected!, inset); // the path closed: back to the node
+    framedPath.current = !!pathKey;
+    if (!go) return;
+    const id = requestAnimationFrame(go);
     return () => cancelAnimationFrame(id);
-  }, [pathKey]);
+  }, [pathKey, active]);
 
   // --- focus view: local layout around the selection ------------------------------------------
   const focusKey = focus && selected ? `${selected}|${focus}` : null;
@@ -300,7 +339,7 @@ export function GraphView({ visible, path }: Props) {
         const n = model.nodes.get(k)!;
         targets[k] = pos.get(k) ?? { x: n.x, y: n.y };
       });
-      return animateNodes(graph, targets, { duration: 450, easing: "quadraticInOut" }, () => fitTo(sigma, [...pos.keys()]));
+      return animateNodes(graph, targets, { duration: 450, easing: "quadraticInOut" }, () => fitTo(sigma, [...pos.keys()], props.current.inset));
     }
     if (wasFocused.current) {
       wasFocused.current = false;
@@ -309,7 +348,7 @@ export function GraphView({ visible, path }: Props) {
       return animateNodes(graph, targets, { duration: 450, easing: "quadraticInOut" }, () => {
         if (selected) {
           const d = sigma.getNodeDisplayData(selected);
-          if (d) sigma.getCamera().animate({ x: d.x, y: d.y, ratio: 0.35 }, { duration: 400 });
+          if (d) sigma.getCamera().animate(uncovered(sigma, { x: d.x, y: d.y, ratio: 0.35 }, props.current.inset), { duration: 400 });
         } else {
           sigma.getCamera().animatedReset({ duration: 400 });
         }
@@ -328,23 +367,51 @@ export function GraphView({ visible, path }: Props) {
       {tip?.kind === "edge" && model.graph.hasEdge(tip.key) && (
         <EdgeTip attrs={model.graph.getEdgeAttributes(tip.key)} x={tip.x} y={tip.y} />
       )}
-      <div className="zoom-controls" role="group">
-        <button type="button" className="icon-btn" title={t.zoomIn} aria-label={t.zoomIn} onClick={() => cam()?.animatedZoom({ duration: 250 })}>
-          <Icon name="plus" />
-        </button>
-        <button type="button" className="icon-btn" title={t.zoomOut} aria-label={t.zoomOut} onClick={() => cam()?.animatedUnzoom({ duration: 250 })}>
-          <Icon name="minus" />
-        </button>
-        <button type="button" className="icon-btn" title={t.zoomReset} aria-label={t.zoomReset} onClick={() => cam()?.animatedReset({ duration: 400 })}>
+      {compact ? (
+        // pinching zooms; the one button brings the whole map back
+        <button type="button" className="fab fit-fab" aria-label={t.zoomReset} onClick={() => cam()?.animatedReset({ duration: 400 })}>
           <Icon name="fit" />
         </button>
-      </div>
+      ) : (
+        <div className="zoom-controls" role="group">
+          <button type="button" className="icon-btn" title={t.zoomIn} aria-label={t.zoomIn} onClick={() => cam()?.animatedZoom({ duration: 250 })}>
+            <Icon name="plus" />
+          </button>
+          <button type="button" className="icon-btn" title={t.zoomOut} aria-label={t.zoomOut} onClick={() => cam()?.animatedUnzoom({ duration: 250 })}>
+            <Icon name="minus" />
+          </button>
+          <button type="button" className="icon-btn" title={t.zoomReset} aria-label={t.zoomReset} onClick={() => cam()?.animatedReset({ duration: 400 })}>
+            <Icon name="fit" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
+type Target = { x: number; y: number; ratio: number };
+
+/** Shifts a camera target so that what it centers shows in the middle of the uncovered stage. */
+function uncovered(sigma: Sigma<NodeAttrs, EdgeAttrs>, target: Target, inset: Inset): Target {
+  const shift = (inset.top - inset.bottom) / 2;
+  if (!shift) return target;
+  const { width, height } = sigma.getDimensions();
+  const cameraState = { ...sigma.getCamera().getState(), ...target };
+  const mid = sigma.viewportToFramedGraph({ x: width / 2, y: height / 2 }, { cameraState });
+  const above = sigma.viewportToFramedGraph({ x: width / 2, y: height / 2 - shift }, { cameraState });
+  return { ...target, x: target.x + above.x - mid.x, y: target.y + above.y - mid.y };
+}
+
+/** Animates the camera to center a node, zooming in if it is far out. */
+function flyTo(sigma: Sigma<NodeAttrs, EdgeAttrs>, key: string, inset: Inset) {
+  const d = sigma.getNodeDisplayData(key);
+  if (!d) return;
+  const cam = sigma.getCamera();
+  cam.animate(uncovered(sigma, { x: d.x, y: d.y, ratio: Math.min(cam.getState().ratio, 0.35) }, inset), { duration: 600 });
+}
+
 /** Animates the camera to frame `keys` (display coordinates are the normalised frame). */
-function fitTo(sigma: Sigma<NodeAttrs, EdgeAttrs>, keys: string[]) {
+function fitTo(sigma: Sigma<NodeAttrs, EdgeAttrs>, keys: string[], inset: Inset) {
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   for (const k of keys) {
     const d = sigma.getNodeDisplayData(k);
@@ -353,8 +420,11 @@ function fitTo(sigma: Sigma<NodeAttrs, EdgeAttrs>, keys: string[]) {
     y0 = Math.min(y0, d.y); y1 = Math.max(y1, d.y);
   }
   if (!Number.isFinite(x0)) return;
+  // a ratio of 1 fits the frame to the stage's shorter side; the covered strips don't count
   const { width, height } = sigma.getDimensions();
-  const aspect = width / Math.max(height, 1);
-  const span = Math.max((x1 - x0) / Math.max(aspect, 1), (y1 - y0) * Math.min(aspect, 1));
-  sigma.getCamera().animate({ x: (x0 + x1) / 2, y: (y0 + y1) / 2, ratio: Math.max(span * 1.25, 0.04) }, { duration: 450 });
+  const side = Math.max(Math.min(width, height), 1);
+  const free = Math.max(height - inset.top - inset.bottom, 1);
+  const span = Math.max(((x1 - x0) * side) / Math.max(width, 1), ((y1 - y0) * side) / free);
+  const target = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, ratio: Math.max(span * 1.25, 0.04) };
+  sigma.getCamera().animate(uncovered(sigma, target, inset), { duration: 450 });
 }

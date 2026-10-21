@@ -1,5 +1,6 @@
 import { forwardRef, useId, useMemo, useState, type KeyboardEvent } from "react";
 
+import type { GNode } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { Icon, TypeIcon } from "../icons";
 import { nameOf, otherNames } from "../lib/names";
@@ -10,6 +11,17 @@ import { subtypeLabel } from "./labels";
 
 const indexCache = new WeakMap<Model, SearchIndex>();
 
+/** Matches for `q` over every name of every node; the index is built once per model. */
+export function useSearch(q: string, limit: number): GNode[] {
+  const model = useModel();
+  const index = useMemo(() => {
+    let i = indexCache.get(model);
+    if (!i) indexCache.set(model, (i = buildSearchIndex(model.list)));
+    return i;
+  }, [model]);
+  return useMemo(() => search(index, q, limit), [index, q, limit]);
+}
+
 interface Props {
   onPick: (key: string) => void;
   placeholder?: string;
@@ -18,7 +30,6 @@ interface Props {
 }
 
 export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox({ onPick, placeholder, autoFocus, className }, ref) {
-  const model = useModel();
   const t = useT();
   const p = usePalette();
   const lang = useApp((s) => s.nameLang);
@@ -26,13 +37,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-
-  const index = useMemo(() => {
-    let i = indexCache.get(model);
-    if (!i) indexCache.set(model, (i = buildSearchIndex(model.list)));
-    return i;
-  }, [model]);
-  const results = useMemo(() => search(index, q, 20), [index, q]);
+  const results = useSearch(q, 20);
 
   const pick = (k: string) => {
     onPick(k);

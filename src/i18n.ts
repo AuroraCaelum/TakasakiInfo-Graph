@@ -210,6 +210,22 @@ const ko = {
   sourceRepo: "원본 데이터",
   selectHint: "노드를 클릭하면 정보와 연관도가 나타납니다.",
   hidden: "현재 필터에서 숨겨진 노드입니다.",
+  // phone layout
+  searchShort: "검색",
+  tapNode: "노드를 탭하세요",
+  tapNodeHint: "위 그래프에서 노드를 탭하면 아래 탭에서 개요·데이터·연관 노드·연관도를 볼 수 있습니다.",
+  searchHint: "일본어·가나·로마자·한국어·별칭으로 찾습니다. 띄어쓰기와 가나 종류는 구분하지 않습니다.",
+  results: "결과",
+  back: "뒤로",
+  display: "표시 설정",
+  timeOff: "끔",
+  pathShort: "경로",
+  pathPickShort: "도착 노드 검색",
+  pathNoneShort: "경로 없음",
+  pathStepHint: "단계를 탭하면 위 그래프가 그 노드로 이동합니다. 아래 탭을 누르면 노드 정보로 돌아갑니다.",
+  linkCopied: "링크를 복사했습니다",
+  showNodes: (n: number) => `노드 ${n.toLocaleString()}개 보기`,
+  resize: "그래프 크기 조절",
 };
 
 export type Dict = typeof ko;
@@ -411,6 +427,21 @@ const en: Dict = {
   sourceRepo: "Source data",
   selectHint: "Click a node to see its data and relatedness.",
   hidden: "Hidden by the current filters.",
+  searchShort: "Search",
+  tapNode: "Tap a node",
+  tapNodeHint: "Tap a node in the graph above; the tabs below show its overview, data, links and relatedness.",
+  searchHint: "Search in Japanese, kana, romaji, Korean or by alias. Spacing and kana script don't matter.",
+  results: "Results",
+  back: "Back",
+  display: "Display",
+  timeOff: "Off",
+  pathShort: "Path",
+  pathPickShort: "Search for the destination",
+  pathNoneShort: "No path",
+  pathStepHint: "Tap a step to move the graph to it. Tap a tab below to return to the node.",
+  linkCopied: "Link copied",
+  showNodes: (n) => `Show ${n.toLocaleString()} node${n === 1 ? "" : "s"}`,
+  resize: "Resize the graph",
 };
 
 const ja: Dict = {
@@ -610,6 +641,21 @@ const ja: Dict = {
   sourceRepo: "元データ",
   selectHint: "ノードをクリックすると情報と関連度が表示されます。",
   hidden: "現在のフィルターで非表示のノードです。",
+  searchShort: "検索",
+  tapNode: "ノードをタップしてください",
+  tapNodeHint: "上のグラフでノードをタップすると、下のタブで概要・データ・関連ノード・関連度を見られます。",
+  searchHint: "日本語・かな・ローマ字・韓国語・別名で検索できます。空白やひらがな・カタカナは区別しません。",
+  results: "結果",
+  back: "戻る",
+  display: "表示設定",
+  timeOff: "オフ",
+  pathShort: "経路",
+  pathPickShort: "到着ノードを検索",
+  pathNoneShort: "経路なし",
+  pathStepHint: "ステップをタップすると上のグラフがそのノードへ移動します。下のタブを押すとノード情報に戻ります。",
+  linkCopied: "リンクをコピーしました",
+  showNodes: (n) => `${n.toLocaleString()}件のノードを表示`,
+  resize: "グラフの大きさを変更",
 };
 
 export const DICTS: Record<UiLang, Dict> = { ko, en, ja };
