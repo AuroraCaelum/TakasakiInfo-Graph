@@ -4,6 +4,18 @@ import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES, type NodeType, type Rela
 import type { NameLang, UiLang } from "./i18n";
 
 export type ThemeChoice = "system" | "light" | "dark";
+/** "preset": the map computed at build time; the others run live over the visible nodes */
+export const LAYOUTS = ["preset", "fa2", "noverlap"] as const;
+export type LayoutName = (typeof LAYOUTS)[number];
+
+/** Noverlap (Gephi's overlap removal), sized for the zoom it runs at. */
+export interface NoverlapOptions {
+  /** room kept between two nodes, in screen pixels */
+  margin: number;
+  /** nodes count as this many times their drawn size */
+  ratio: number;
+}
+export const NOVERLAP_DEFAULTS: NoverlapOptions = { margin: 2, ratio: 1 };
 export type ColorBy = "type" | "project" | "community";
 export type Tab = "overview" | "data" | "neighbors" | "related";
 

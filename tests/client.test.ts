@@ -4,12 +4,16 @@ import { GRAPH_FORMAT, type GraphFile } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
 import { buildGraph } from "../scripts/lib/build-graph";
 import { personalizedPageRank, shortestPath, similarNodes } from "../src/lib/analysis";
+import forceAtlas2 from "graphology-layout-forceatlas2";
+import { FA2_DEFAULTS, fa2Settings } from "../shared/layout";
+import noverlap from "graphology-layout-noverlap";
+import { fitInto, layoutGraph, noverlapGraph } from "../src/lib/layouts";
 import { fandomTab, fandomUrl } from "../src/lib/links";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
 import { computeVisible, type VisibilityInput } from "../src/lib/visibility";
 import { buildModel } from "../src/model";
-import { cloneFilters, type ViewState } from "../src/view";
+import { cloneFilters, NOVERLAP_DEFAULTS, type ViewState } from "../src/view";
 import { fixture } from "./fixtures";
 
 const built = buildGraph(fixture());
@@ -151,5 +155,75 @@ describe("url", () => {
     expect(fromQuery("?ui=en&names=ko", base, isNode).nameLang).toBe("ko");
     expect(toQuery({ ...base, uiLang: "en", nameLang: "rom" }, base)).toBe("?ui=en");
     expect(toQuery({ ...base, uiLang: "en", nameLang: "ko" }, base)).toBe("?ui=en&names=ko");
+  });
+});
+
+describe("live layout", () => {
+  const v = computeVisible(model, view());
+  const at = (k: string) => model.nodes.get(k)!;
+
+  it("lays out the visible nodes over their fact edges, weighted as the build does", () => {
+    const withDerived = computeVisible(model, view({ relations: { ...cloneFilters().relations, co_credit: true } }));
+    const g = layoutGraph(model, withDerived, at);
+    expect(g.order).toBe(withDerived.nodes.size);
+    g.forEachEdge((_e, attr, s, t) => {
+      const facts = model.graph.edges(s, t).map((e) => model.graph.getEdgeAttributes(e)).filter((x) => !x.derived);
+      expect(facts).toHaveLength(1); // derived edges are left out
+      expect(attr.weight).toBeCloseTo(facts[0].facts.reduce((sum, f) => sum + (f.r === "project" ? 0.5 : 1 + Math.log2(f.w)), 0));
+    });
+    expect(g.hasNode("work:alpha/d1")).toBe(false); // hidden nodes stay out
+  });
+
+  it("turns every viewer option into a ForceAtlas2 setting graphology knows", () => {
+    const flipped = fa2Settings(100, {
+      linLog: true, dissuadeHubs: true, strongGravity: false, approximate: false,
+      gravity: 2, scaling: 3, edgeWeightInfluence: 0,
+    });
+    expect(flipped).toMatchObject({
+      linLogMode: true, outboundAttractionDistribution: true, strongGravityMode: false,
+      barnesHutOptimize: false, gravity: 2, scalingRatio: 3, edgeWeightInfluence: 0,
+    });
+    // graphology accepts them, and the defaults stay the build's forces
+    const g = layoutGraph(model, v, at);
+    expect(() => forceAtlas2.assign(g, { iterations: 2, settings: flipped })).not.toThrow();
+    expect(fa2Settings(100, FA2_DEFAULTS)).toEqual(fa2Settings(100));
+    expect(fa2Settings(100)).toMatchObject({ gravity: 0.05, scalingRatio: 6, strongGravityMode: true, linLogMode: false });
+  });
+
+  it("sizes Noverlap's nodes as drawn at the zoom it runs at, and spaces them apart", () => {
+    // every node stacked on one spot, drawn 4 px wide at 0.5 map units per pixel
+    const options = { fa2: FA2_DEFAULTS, noverlap: { ...NOVERLAP_DEFAULTS, ratio: 1.5 }, view: { unitsPerPx: 0.5, radiusPx: () => 4 } };
+    const g = noverlapGraph(v, () => ({ x: 0, y: 0 }), options);
+    expect(g.order).toBe(v.nodes.size);
+    expect(g.size).toBe(0);
+    g.forEachNode((_k, a) => expect(a.size).toBeCloseTo(4 * 0.5 * 1.5));
+    // the spacing the worker applies clears most overlaps (where nodes crowd, a few jostle on)
+    g.forEachNode((k, a) => { a.x = k.length; a.y = k.charCodeAt(k.length - 1) % 7; }); // a few crowded spots
+    const overlapping = () => {
+      const ns = g.mapNodes((_k, a) => a);
+      let n = 0;
+      for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) if (Math.hypot(ns[i].x - ns[j].x, ns[i].y - ns[j].y) < ns[i].size + ns[j].size) n++;
+      return n;
+    };
+    const before = overlapping();
+    noverlap.assign(g, { maxIterations: 300, settings: { margin: 0, ratio: 1 } });
+    expect(overlapping()).toBeLessThan(before * 0.2);
+  });
+
+  it("fits a frame back where the nodes started: unchanged positions stay put", () => {
+    const g = layoutGraph(model, v, at);
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    g.forEachNode((_k, p) => { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); });
+    const frame = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, span: Math.max(x1 - x0, y1 - y0) };
+    for (const [k, p] of fitInto(g, frame)) {
+      expect(p.x).toBeCloseTo(at(k).x);
+      expect(p.y).toBeCloseTo(at(k).y);
+    }
+    // a layout that spread out twice as far is scaled back into the same frame
+    g.updateEachNodeAttributes((_k, p) => ({ ...p, x: p.x * 2 + 50, y: p.y * 2 - 20 }));
+    for (const [k, p] of fitInto(g, frame)) {
+      expect(p.x).toBeCloseTo(at(k).x);
+      expect(p.y).toBeCloseTo(at(k).y);
+    }
   });
 });

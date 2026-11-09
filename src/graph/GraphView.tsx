@@ -12,10 +12,12 @@ import { Icon } from "../icons";
 import type { PathResult } from "../lib/analysis";
 import { classOf, colorOf } from "../lib/classes";
 import { focusLayout } from "../lib/focus-layout";
+import { runLayout, type Point } from "../lib/layouts";
 import { nameOf } from "../lib/names";
 import type { Visible } from "../lib/visibility";
 import type { EdgeAttrs, NodeAttrs } from "../model";
 import { useApp } from "../store";
+import { LayoutSettingsPanel } from "../ui/LayoutSettings";
 import type { Palette } from "../theme";
 import type { ColorBy } from "../view";
 import type { NameLang } from "../i18n";
@@ -78,6 +80,20 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const selected = useApp((s) => s.selected);
   const focus = useApp((s) => s.focus);
   const legendHover = useApp((s) => s.legendHover);
+  const layout = useApp((s) => s.layout);
+  const fa2 = useApp((s) => s.fa2);
+  const noverlap = useApp((s) => s.noverlap);
+  /** the options of the layout in use: a change to them runs it again */
+  const options = layout === "fa2" ? fa2 : layout === "noverlap" ? noverlap : null;
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [rerun, setRerun] = useState(0);
+  const stopLive = useRef<(() => void) | null>(null);
+  /** where a live layout last left each node; nodes it never placed rest at the precomputed map */
+  const rest = useRef(new Map<string, Point>());
+  const restOf = (k: string): Point => rest.current.get(k) ?? model.nodes.get(k)!;
+  /** a live layout waits for the animation out of the focus view to end */
+  const settleUntil = useRef(0);
 
   const state = useRef<RenderState>({
     visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null,
@@ -333,18 +349,16 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     const graph = model.graph;
     if (focusKey && selected && visible.nodes.has(selected)) {
       wasFocused.current = true;
-      const pos = focusLayout(model, selected, visible);
+      const pos = focusLayout(model, selected, visible, restOf);
       const targets: Record<string, { x: number; y: number }> = {};
-      graph.forEachNode((k) => {
-        const n = model.nodes.get(k)!;
-        targets[k] = pos.get(k) ?? { x: n.x, y: n.y };
-      });
+      graph.forEachNode((k) => { targets[k] = pos.get(k) ?? restOf(k); });
       return animateNodes(graph, targets, { duration: 450, easing: "quadraticInOut" }, () => fitTo(sigma, [...pos.keys()], props.current.inset));
     }
     if (wasFocused.current) {
       wasFocused.current = false;
+      settleUntil.current = performance.now() + 450;
       const targets: Record<string, { x: number; y: number }> = {};
-      for (const n of model.list) targets[n.k] = { x: n.x, y: n.y };
+      graph.forEachNode((k) => { targets[k] = restOf(k); });
       return animateNodes(graph, targets, { duration: 450, easing: "quadraticInOut" }, () => {
         if (selected) {
           const d = sigma.getNodeDisplayData(selected);
@@ -357,7 +371,64 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     // `visible` matters only while focused: a filter change re-lays the neighbourhood out
   }, [focusKey, focusKey ? visible : null, model]);
 
+  // --- node layout: the precomputed map, or a live run over the visible nodes ------------------
+  // (the focus view owns the positions while it is open; a live layout resumes after it)
+  const focused = !!focusKey;
+  useEffect(() => {
+    const graph = model.graph;
+    if (layout === "preset") {
+      if (!rest.current.size) return;
+      rest.current.clear();
+      if (focused) return; // leaving the focus view animates to the precomputed map
+      const targets: Record<string, { x: number; y: number }> = {};
+      for (const n of model.list) targets[n.k] = { x: n.x, y: n.y };
+      return animateNodes(graph, targets, { duration: 600, easing: "quadraticInOut" });
+    }
+    if (focused) return;
+    let stop: (() => void) | null = null;
+    const end = () => {
+      stop?.();
+      stop = null;
+      stopLive.current = null;
+      setRunning(false);
+    };
+    // a short wait also merges a burst of filter changes (the time slider playing) into one run
+    const id = setTimeout(() => {
+      const sigma = sigmaRef.current;
+      // the view the run is sized for (Noverlap spaces nodes for the zoom it starts at)
+      const o = sigma?.viewportToGraph({ x: 0, y: 0 }) ?? { x: 0, y: 0 };
+      const e = sigma?.viewportToGraph({ x: 100, y: 0 }) ?? { x: 100, y: 0 };
+      const view = {
+        unitsPerPx: Math.hypot(e.x - o.x, e.y - o.y) / 100,
+        radiusPx: (k: string) => sigma?.scaleSize(graph.getNodeAttribute(k, "size")) ?? graph.getNodeAttribute(k, "size"),
+      };
+      stop = runLayout(layout, model, visible, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
+        for (const [k, p] of pos) rest.current.set(k, p);
+        graph.updateEachNodeAttributes((k, a) => {
+          const p = pos.get(k);
+          if (p) { a.x = p.x; a.y = p.y; }
+          return a;
+        }, { attributes: ["x", "y"] });
+      }, () => { stop = null; end(); });
+      stopLive.current = end;
+      setRunning(true);
+    }, Math.max(120, settleUntil.current - performance.now()));
+    return () => { clearTimeout(id); end(); };
+    // `visible` changes as the focus view opens and closes; the run resumes with the latter.
+    // A changed option starts over from where the nodes are, so the picture moves on smoothly.
+  }, [layout, focused, focused ? null : visible, model, rerun, options]);
+
   const cam = () => sigmaRef.current?.getCamera();
+  // a live layout settles and stops by itself; this stops it early or runs it again
+  const liveButton = (className: string) => layout !== "preset" && (
+    <button
+      type="button" className={className} disabled={focused} aria-pressed={running}
+      title={running ? t.layoutStop : t.layoutRun} aria-label={running ? t.layoutStop : t.layoutRun}
+      onClick={() => (running ? stopLive.current?.() : setRerun((n) => n + 1))}
+    >
+      <Icon name={running ? "pause" : "play"} />
+    </button>
+  );
   return (
     <div className="graph">
       <div ref={container} className="graph-canvas" />
@@ -368,12 +439,24 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
         <EdgeTip attrs={model.graph.getEdgeAttributes(tip.key)} x={tip.x} y={tip.y} />
       )}
       {compact ? (
-        // pinching zooms; the one button brings the whole map back
-        <button type="button" className="fab fit-fab" aria-label={t.zoomReset} onClick={() => cam()?.animatedReset({ duration: 400 })}>
-          <Icon name="fit" />
-        </button>
+        <>
+          {liveButton("fab layout-fab")}
+          {/* pinching zooms; the one button brings the whole map back */}
+          <button type="button" className="fab fit-fab" aria-label={t.zoomReset} onClick={() => cam()?.animatedReset({ duration: 400 })}>
+            <Icon name="fit" />
+          </button>
+        </>
       ) : (
         <div className="zoom-controls" role="group">
+          {liveButton(`icon-btn layout-run${running ? " on" : ""}`)}
+          {layout !== "preset" && (
+            <button
+              type="button" className={`icon-btn layout-sep${settingsOpen ? " on" : ""}`} aria-expanded={settingsOpen}
+              title={t.layoutSettings[layout]} aria-label={t.layoutSettings[layout]} onClick={() => setSettingsOpen(!settingsOpen)}
+            >
+              <Icon name="sliders" />
+            </button>
+          )}
           <button type="button" className="icon-btn" title={t.zoomIn} aria-label={t.zoomIn} onClick={() => cam()?.animatedZoom({ duration: 250 })}>
             <Icon name="plus" />
           </button>
@@ -385,6 +468,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
           </button>
         </div>
       )}
+      {!compact && layout !== "preset" && settingsOpen && <LayoutSettingsPanel layout={layout} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }
