@@ -15,7 +15,7 @@ export function TypeDot({ type, sub, size, color }: { type: NodeType; sub?: stri
 }
 
 /** One choice out of a few, as a row of buttons. */
-export function Segmented<T extends string | number>({ value, options, label, onChange, name, round }: {
+export function Segmented<T extends string | number>({ value, options, label, onChange, name, round, fit }: {
   value: T;
   options: readonly T[];
   label: (o: T) => ReactNode;
@@ -23,9 +23,11 @@ export function Segmented<T extends string | number>({ value, options, label, on
   name: string;
   /** the pill-shaped variant that sits among the node actions */
   round?: boolean;
+  /** buttons as wide as their labels, for labels of very different lengths */
+  fit?: boolean;
 }) {
   return (
-    <div className={`m-seg${round ? " round" : ""}`} role="radiogroup" aria-label={name}>
+    <div className={`m-seg${round ? " round" : ""}${fit ? " fit" : ""}`} role="radiogroup" aria-label={name}>
       {options.map((o) => (
         <button key={o} type="button" role="radio" aria-checked={value === o} className={value === o ? "on" : ""} onClick={() => onChange(o)}>
           {label(o)}

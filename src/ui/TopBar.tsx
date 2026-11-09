@@ -3,8 +3,8 @@ import { useEffect, useRef } from "react";
 import { useT } from "../context";
 import { NAME_LANGS, UI_LANGS, type UiLang } from "../i18n";
 import { Icon } from "../icons";
-import { chooseNameLang, chooseTheme, chooseUiLang, useApp } from "../store";
-import type { ThemeChoice } from "../view";
+import { chooseLayout, chooseNameLang, chooseTheme, chooseUiLang, useApp } from "../store";
+import { LAYOUTS, type LayoutName, type ThemeChoice } from "../view";
 import { SearchBox } from "./SearchBox";
 
 export const UI_LANG_LABEL: Record<UiLang, string> = { ko: "한국어", en: "English", ja: "日本語" };
@@ -43,6 +43,12 @@ export function TopBar({ onAbout }: { onAbout: () => void }) {
       </div>
       <SearchBox ref={searchRef} className="main-search" onPick={(k) => s.select(k)} />
       <div className="topbar-controls">
+        <label className="select-wrap" title={t.layout}>
+          <span className="sr-only">{t.layout}</span>
+          <select value={s.layout} onChange={(e) => chooseLayout(e.target.value as LayoutName)}>
+            {LAYOUTS.map((l) => <option key={l} value={l}>{t.layouts[l]}</option>)}
+          </select>
+        </label>
         <div className="segmented" role="radiogroup" aria-label={t.nameLang} title={t.nameLang}>
           {NAME_LANGS.map((l) => (
             <button

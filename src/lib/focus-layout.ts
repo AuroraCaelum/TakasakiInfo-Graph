@@ -1,7 +1,8 @@
 /**
  * Layout for the focus view: the selection in the middle, its neighbourhood in rings by depth,
  * relaxed by a short ForceAtlas2 run, then fitted into a disc around the selection's place in
- * the global map (so leaving the focus view animates back without the map jumping).
+ * the map it came from, the precomputed one or a live layout's (so leaving the focus view
+ * animates back without the map jumping).
  */
 
 import Graph from "graphology";
@@ -14,7 +15,8 @@ export type Positions = Map<string, { x: number; y: number }>;
 
 const spanCache = new WeakMap<Model, number>();
 
-function globalSpan(model: Model): number {
+/** The larger side of the precomputed map. */
+export function globalSpan(model: Model): number {
   let s = spanCache.get(model);
   if (s === undefined) {
     const xs = model.list.map((n) => n.x);
@@ -25,8 +27,11 @@ function globalSpan(model: Model): number {
   return s;
 }
 
-export function focusLayout(model: Model, center: string, visible: Visible): Positions {
-  const origin = model.nodes.get(center)!;
+/** `at`: where each node is in the map the focus view opens from (default: the precomputed one). */
+export function focusLayout(
+  model: Model, center: string, visible: Visible, at: (k: string) => { x: number; y: number } = (k) => model.nodes.get(k)!,
+): Positions {
+  const origin = at(center);
   const depth = new Map([[center, 0]]);
   const queue = [center];
   while (queue.length) {
@@ -46,7 +51,7 @@ export function focusLayout(model: Model, center: string, visible: Visible): Pos
   for (const [k, d] of depth) rings.set(d, [...(rings.get(d) ?? []), k]);
   for (const [d, keys] of rings) {
     // keep the global orientation: order each ring by the nodes' angle around the selection
-    const angle = (k: string) => { const n = model.nodes.get(k)!; return Math.atan2(n.y - origin.y, n.x - origin.x); };
+    const angle = (k: string) => { const n = at(k); return Math.atan2(n.y - origin.y, n.x - origin.x); };
     keys.sort((a, b) => angle(a) - angle(b));
     keys.forEach((k, i) => {
       const a = keys.length > 1 ? (2 * Math.PI * i) / keys.length : 0;

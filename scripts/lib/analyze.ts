@@ -14,6 +14,7 @@ import betweenness from "graphology-metrics/centrality/betweenness";
 import pagerank from "graphology-metrics/centrality/pagerank";
 
 import { isDerived, type Community, type GEdge, type Metrics } from "../../shared/graph";
+import { fa2Settings, layoutWeight } from "../../shared/layout";
 import type { NodeDraft } from "./build-graph";
 
 export interface Analysis {
@@ -91,11 +92,11 @@ export function analyze(nodes: Map<string, NodeDraft>, edges: GEdge[], { iterati
 
 /**
  * ForceAtlas2 over the fact graph with project membership included (so each project forms a
- * region), weights log-damped so one heavy edge does not collapse its endpoints. Starting
- * positions are deterministic: around the node's projects' anchors plus a hash-based jitter.
+ * region), with the forces of shared/layout.ts. Starting positions are deterministic: around
+ * the node's projects' anchors plus a hash-based jitter.
  */
 function layout(nodes: Map<string, NodeDraft>, keys: string[], edges: GEdge[], iterations: number) {
-  const g = simpleGraph(keys, edges, (e) => !isDerived(e.r), (e) => (e.r === "project" ? 0.5 : 1 + Math.log2(e.w)));
+  const g = simpleGraph(keys, edges, (e) => !isDerived(e.r), (e) => layoutWeight(e.r, e.w));
   const projects = keys.filter((k) => nodes.get(k)!.t === "project").map((k) => k.slice("project:".length));
   const anchor = new Map(projects.map((p, i) => {
     const a = (2 * Math.PI * i) / projects.length;
@@ -109,17 +110,7 @@ function layout(nodes: Map<string, NodeDraft>, keys: string[], edges: GEdge[], i
     const r = rng(hash(k));
     g.mergeNodeAttributes(k, { x: cx + (r() - 0.5) * 60, y: cy + (r() - 0.5) * 60 });
   });
-  // weak gravity lets each project settle into its own region, with the people who work
-  // across projects in between (tuned visually; scalingRatio only rescales the picture)
-  const settings = {
-    ...forceAtlas2.inferSettings(g),
-    barnesHutOptimize: true,
-    edgeWeightInfluence: 1,
-    gravity: 0.05,
-    scalingRatio: 6,
-    linLogMode: false,
-  };
-  forceAtlas2.assign(g, { iterations, settings, getEdgeWeight: "weight" });
+  forceAtlas2.assign(g, { iterations, settings: fa2Settings(g.order), getEdgeWeight: "weight" });
   const out = new Map<string, { x: number; y: number }>();
   g.forEachNode((k, a) => out.set(k, { x: round(a.x as number, 2), y: round(a.y as number, 2) }));
   return out;
