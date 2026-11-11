@@ -13,9 +13,10 @@ export function NodeLink({ k, children, plain }: { k: string; children?: ReactNo
   const t = useT();
   const p = usePalette();
   const lang = useApp((s) => s.nameLang);
+  const ui = useApp((s) => s.uiLang);
   const select = useApp((s) => s.select);
   if (!node) return <span className="muted">{k}</span>;
-  const other = otherNames(node.n, lang).map((o) => o.text).join(" / ");
+  const other = otherNames(node.n, lang, ui).map((o) => o.text).join(" / ");
   return (
     <button
       type="button" className={plain ? "node-link plain" : "node-link"} onClick={() => select(k)}
@@ -58,6 +59,16 @@ export function KV({ rows }: { rows: [ReactNode, ReactNode][] }) {
 
 export function Badge({ children, tone }: { children: ReactNode; tone?: "strong" | "muted" }) {
   return <span className={`badge${tone ? ` badge-${tone}` : ""}`}>{children}</span>;
+}
+
+/** Shown by a person or character on their birthday (the graph puts a party hat on the node). */
+export function BirthdayBadge() {
+  const t = useT();
+  return (
+    <span className="badge badge-birthday">
+      <Icon name="hat" size={12} strokeWidth={2.4} /> {t.birthdayToday}
+    </span>
+  );
 }
 
 export function ExtLink({ href, children }: { href: string; children: ReactNode }) {

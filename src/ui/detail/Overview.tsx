@@ -1,20 +1,20 @@
 import type { Detail, GNode } from "../../../shared/graph";
 import type { Names } from "../../../shared/v1";
 import { useModel, useT } from "../../context";
+import { formatBirthday, useBirthdaysToday } from "../../lib/birthday";
 import { fandomUrl } from "../../lib/links";
+import { namePartText, nameOrder } from "../../lib/names";
 import { useApp } from "../../store";
-import { Aliases, Badge, EvidenceList, ExtLink, KV, NodeLink, Section, shortUrl } from "../common";
+import { Aliases, Badge, BirthdayBadge, EvidenceList, ExtLink, KV, NodeLink, Section, shortUrl } from "../common";
 
 const LANG_LABEL: Record<keyof Names, string> = { ja: "ja", kana: "kana", rom: "rom", ko: "ko" };
 
 function NamesTable({ names }: { names: Names }) {
+  const ui = useApp((s) => s.uiLang);
   return (
-    <KV rows={(["ja", "kana", "rom", "ko"] as const).map((l) => [LANG_LABEL[l], names[l] ? <span lang={l === "rom" ? "en" : l === "kana" ? "ja" : l}>{names[l]}</span> : null])} />
+    <KV rows={nameOrder(ui).map((l) => [LANG_LABEL[l], names[l] ? <span lang={l === "rom" ? "en" : l === "kana" ? "ja" : l}>{names[l]}</span> : null])} />
   );
 }
-
-/** A name part (family or given) in every script: `ja (kana) / rom / ko`. */
-const partText = (n: Names) => [n.ja && (n.kana && n.kana !== n.ja ? `${n.ja} (${n.kana})` : n.ja), n.rom, n.ko].filter(Boolean).join(" / ");
 
 /** Every external link the entity has, in one list. */
 function linksOf(detail: Detail | undefined): { key: string; url: string }[] {
@@ -41,6 +41,8 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
   const t = useT();
   const model = useModel();
   const set = useApp((s) => s.set);
+  const uiLang = useApp((s) => s.uiLang);
+  const birthdays = useBirthdaysToday();
   const community = model.communities[node.m.cm];
   const links = linksOf(detail);
   const parts = detail && (detail.t === "person" || detail.t === "character") ? detail : null;
@@ -51,8 +53,8 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
         <NamesTable names={node.n} />
         {parts && (parts.familyName || parts.givenName) && (
           <KV rows={[
-            [t.familyName, parts.familyName && partText(parts.familyName)],
-            [t.givenName, parts.givenName && partText(parts.givenName)],
+            [t.familyName, parts.familyName && namePartText(parts.familyName, uiLang)],
+            [t.givenName, parts.givenName && namePartText(parts.givenName, uiLang)],
           ]} />
         )}
         {detail?.t === "person" && detail.aliases.some((a) => a.kind !== "misprint") && (
@@ -62,6 +64,12 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
 
       <Section title={t.tabs.overview} hint={node.ext ? t.externalHint : undefined}>
         <KV rows={[
+          [t.birthday, parts?.birthday ? (
+            <span className="birthday">
+              <span className="tabular">{formatBirthday(parts.birthday, uiLang)}</span>
+              {node.bd && birthdays.has(node.bd) && <BirthdayBadge />}
+            </span>
+          ) : null],
           [t.firstSeen, node.d ? <span className="tabular">{node.d}</span> : <span className="muted">{t.undated}</span>],
           [t.statusLabel, node.st ? <Badge>{t.status[node.st] ?? node.st}</Badge> : null],
           [t.projects, node.t !== "project" && node.p.length ? (

@@ -1,6 +1,6 @@
 import EdgeCurveProgram from "@sigma/edge-curve";
 import { createNodeImageProgram } from "@sigma/node-image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import { createNodeCompoundProgram, EdgeRectangleProgram, NodeCircleProgram, type NodeProgramType } from "sigma/rendering";
 import type { NodeDisplayData, EdgeDisplayData } from "sigma/types";
@@ -10,13 +10,14 @@ import type { GNode } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { Icon } from "../icons";
 import type { PathResult } from "../lib/analysis";
+import { useBirthdaysToday } from "../lib/birthday";
 import { classOf, colorOf } from "../lib/classes";
 import { focusLayout } from "../lib/focus-layout";
 import { runLayout, type Point } from "../lib/layouts";
 import { nameOf } from "../lib/names";
-import type { Visible } from "../lib/visibility";
+import { computeVisible, type Visible } from "../lib/visibility";
 import type { EdgeAttrs, NodeAttrs } from "../model";
-import { useApp } from "../store";
+import { useApp, useFilters } from "../store";
 import { LayoutSettingsPanel } from "../ui/LayoutSettings";
 import type { Palette } from "../theme";
 import type { ColorBy } from "../view";
@@ -36,6 +37,8 @@ interface RenderState {
   hovered: string | null;
   nodes: Set<string> | null;
   edges: Set<string> | null;
+  /** persons and characters whose birthday is today: they wear a party hat */
+  birthdays: string[];
 }
 
 type Tip = { kind: "node"; key: string; x: number; y: number } | { kind: "edge"; key: string; x: number; y: number };
@@ -83,6 +86,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const layout = useApp((s) => s.layout);
   const fa2 = useApp((s) => s.fa2);
   const noverlap = useApp((s) => s.noverlap);
+  const birthdaysToday = useBirthdaysToday();
   /** the options of the layout in use: a change to them runs it again */
   const options = layout === "fa2" ? fa2 : layout === "noverlap" ? noverlap : null;
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -94,9 +98,18 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const restOf = (k: string): Point => rest.current.get(k) ?? model.nodes.get(k)!;
   /** a live layout waits for the animation out of the focus view to end */
   const settleUntil = useRef(0);
+  /**
+   * What a live layout runs over: the filters' nodes, not `visible`, which also holds the
+   * selected node and so changes with every click. A click moves nothing; the filters, the
+   * date and the layout's options do.
+   */
+  const filters = useFilters();
+  const laidOut = useMemo(() => computeVisible(model, { ...filters, selected: null, focus: 0 }), [model, filters]);
+  /** the inputs of the last run that finished (settled, or stopped by the viewer) */
+  const finished = useRef<unknown[] | null>(null);
 
   const state = useRef<RenderState>({
-    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null,
+    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [],
   });
 
   // --- sigma instance ------------------------------------------------------------------------
@@ -223,6 +236,31 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
         return res;
       },
     });
+    // party hats on today's birthdays: a 2D layer over the nodes (the hovered ones included) and
+    // under the mouse layer, redrawn with every frame so the hats follow the camera and layouts
+    const hatCanvas = sigma.createCanvas("birthdays", { afterLayer: "hoverNodes", style: { pointerEvents: "none" } });
+    const hatCtx = hatCanvas.getContext("2d")!;
+    sigma.on("afterRender", () => {
+      const { width, height } = sigma.getDimensions();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(width * dpr), h = Math.round(height * dpr);
+      if (hatCanvas.width !== w || hatCanvas.height !== h) {
+        hatCanvas.width = w;
+        hatCanvas.height = h;
+      }
+      hatCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      hatCtx.clearRect(0, 0, width, height);
+      const s = st.current;
+      for (const k of s.birthdays) {
+        if (!s.visible.nodes.has(k) || (s.nodes && !s.nodes.has(k))) continue; // hidden or dimmed
+        const d = sigma.getNodeDisplayData(k);
+        if (!d || d.hidden) continue;
+        const { x, y } = sigma.framedGraphToViewport(d);
+        const r = sigma.scaleSize(d.size);
+        if (x < -40 || y < -40 || x > width + 40 || y > height + 40) continue;
+        drawPartyHat(hatCtx, x, y, r, s.palette);
+      }
+    });
     sigma.setCustomBBox(sigma.getBBox()); // the focus view moves nodes; the frame must not follow
     sigmaRef.current = sigma;
     if (import.meta.env.DEV) (window as unknown as { sigma: unknown }).sigma = sigma; // for debugging in the console
@@ -286,6 +324,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     s.hovered = hovered;
     s.nodes = null;
     s.edges = null;
+    s.birthdays = model.list.filter((n) => n.bd && birthdaysToday.has(n.bd)).map((n) => n.k);
     const around = (k: string) => {
       const nodes = new Set([k]);
       const edges = new Set<string>();
@@ -311,7 +350,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     // label, so the label grid only has to place the highlighted ones without overlap)
     sigmaRef.current?.setSetting("labelRenderedSizeThreshold", s.nodes ? 0 : 8);
     sigmaRef.current?.refresh();
-  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, path]);
+  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, path, birthdaysToday]);
 
   // --- camera: fly to a node selected outside the graph ----------------------------------------
   useEffect(() => {
@@ -385,12 +424,20 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       return animateNodes(graph, targets, { duration: 600, easing: "quadraticInOut" });
     }
     if (focused) return;
+    // leaving the focus view resumes a run it cut short, but does not start a finished one over
+    const inputs = [layout, laidOut, model, rerun, options];
+    if (finished.current?.every((x, i) => x === inputs[i])) return;
+    finished.current = null;
     let stop: (() => void) | null = null;
     const end = () => {
       stop?.();
       stop = null;
       stopLive.current = null;
       setRunning(false);
+    };
+    const finish = () => {
+      finished.current = inputs;
+      end();
     };
     // a short wait also merges a burst of filter changes (the time slider playing) into one run
     const id = setTimeout(() => {
@@ -402,21 +449,21 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
         unitsPerPx: Math.hypot(e.x - o.x, e.y - o.y) / 100,
         radiusPx: (k: string) => sigma?.scaleSize(graph.getNodeAttribute(k, "size")) ?? graph.getNodeAttribute(k, "size"),
       };
-      stop = runLayout(layout, model, visible, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
+      stop = runLayout(layout, model, laidOut, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
         for (const [k, p] of pos) rest.current.set(k, p);
         graph.updateEachNodeAttributes((k, a) => {
           const p = pos.get(k);
           if (p) { a.x = p.x; a.y = p.y; }
           return a;
         }, { attributes: ["x", "y"] });
-      }, () => { stop = null; end(); });
-      stopLive.current = end;
+      }, () => { stop = null; finish(); });
+      stopLive.current = finish;
       setRunning(true);
     }, Math.max(120, settleUntil.current - performance.now()));
     return () => { clearTimeout(id); end(); };
-    // `visible` changes as the focus view opens and closes; the run resumes with the latter.
-    // A changed option starts over from where the nodes are, so the picture moves on smoothly.
-  }, [layout, focused, focused ? null : visible, model, rerun, options]);
+    // A changed filter or option starts over from where the nodes are, so the picture moves on
+    // smoothly.
+  }, [layout, focused, laidOut, model, rerun, options]);
 
   const cam = () => sigmaRef.current?.getCamera();
   // a live layout settles and stops by itself; this stops it early or runs it again
@@ -471,6 +518,56 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       {!compact && layout !== "preset" && settingsOpen && <LayoutSettingsPanel layout={layout} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
+}
+
+/** Party hat colors: a hue no node type uses up close (persons are orange, characters yellow). */
+const HAT = { light: "#e0457f", dark: "#ee5c93" };
+const POMPOM = "#ffd23f";
+
+/**
+ * A small party hat on a node of radius `r` (viewport pixels), tilted to the left so it stays
+ * clear of the label on the right. It keeps a minimum size so it can be found zoomed out, and a
+ * halo in the stage color sets it apart from whatever lies under it.
+ */
+function drawPartyHat(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, p: Palette) {
+  const h = Math.max(r * 1.15, 8);
+  const w = h * 0.68;
+  const tilt = -0.38;
+  const halo = p.mode === "light" ? "rgba(252,252,251,0.95)" : "rgba(26,26,25,0.95)";
+  ctx.save();
+  // the brim rests on the head, a little left of its top
+  ctx.translate(cx + Math.sin(tilt) * r * 0.78, cy - Math.cos(tilt) * r * 0.78);
+  ctx.rotate(tilt);
+  const cone = new Path2D();
+  cone.moveTo(-w / 2, 0);
+  cone.lineTo(0, -h);
+  cone.lineTo(w / 2, 0);
+  cone.quadraticCurveTo(0, h * 0.14, -w / 2, 0);
+  cone.closePath();
+  const pompom = new Path2D();
+  pompom.arc(0, -h, Math.max(h * 0.15, 1.6), 0, Math.PI * 2);
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(h * 0.16, 2);
+  ctx.strokeStyle = halo;
+  ctx.stroke(cone);
+  ctx.stroke(pompom);
+  ctx.fillStyle = HAT[p.mode];
+  ctx.fill(cone);
+  // two stripes across the cone
+  ctx.save();
+  ctx.clip(cone);
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = Math.max(h * 0.1, 1);
+  for (const f of [0.28, 0.58]) {
+    ctx.beginPath();
+    ctx.moveTo(-w, -h * f + w * 0.25);
+    ctx.lineTo(w, -h * f - w * 0.25);
+    ctx.stroke();
+  }
+  ctx.restore();
+  ctx.fillStyle = POMPOM;
+  ctx.fill(pompom);
+  ctx.restore();
 }
 
 type Target = { x: number; y: number; ratio: number };

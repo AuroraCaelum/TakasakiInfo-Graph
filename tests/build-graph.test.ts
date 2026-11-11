@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { CityDetail, ConcertDetail, GEdge, PersonDetail, ReleaseDetail, VenueDetail, WorkDetail } from "../shared/graph";
+import type { CharacterDetail, CityDetail, ConcertDetail, GEdge, PersonDetail, ReleaseDetail, VenueDetail, WorkDetail } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
 import { buildGraph } from "../scripts/lib/build-graph";
 import { mergePeriods } from "../scripts/lib/dates";
@@ -39,6 +39,24 @@ describe("buildGraph: nodes", () => {
     expect(built.nodes.get("person:cv-one")?.d).toBe("2021-05-01"); // casting without a start: her character's date
     expect(built.nodes.get("artist:unit-b")?.d).toBe("2022-06-01"); // undated lineup: member c3's first song
     expect(built.nodes.get("character:beta/c4")?.d).toBe("2022-06-01"); // no songs: her unit's date
+  });
+
+  it("carries birthdays: the month and day on the node, the date as given in the detail", () => {
+    expect(built.nodes.get("person:cv-one")?.bd).toBe("05-02");
+    expect(built.nodes.get("character:alpha/c2")?.bd).toBe("08-01");
+    expect(built.nodes.get("person:cv-two")?.bd).toBeUndefined();
+    expect((built.details.get("person:cv-one") as PersonDetail).birthday).toBe("1997-05-02");
+    expect((built.details.get("character:alpha/c2") as CharacterDetail).birthday).toBe("08-01");
+  });
+
+  it("reports a malformed birthday and leaves it out", () => {
+    const ds = fixture();
+    ds.persons[0] = { ...ds.persons[0], birthday: "1997-02-30" };
+    ds.characters[0] = { ...ds.characters[0], birthday: "8/1" };
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual(['person writer: birthday "1997-02-30" is not YYYY-MM-DD or MM-DD', 'character alpha/c1: birthday "8/1" is not YYYY-MM-DD or MM-DD']);
+    expect(b.nodes.get("person:writer")?.bd).toBeUndefined();
+    expect((b.details.get("character:alpha/c1") as CharacterDetail).birthday).toBeUndefined();
   });
 
   it("dates an artist's membership in each project by that project's songs, releases and members", () => {

@@ -95,6 +95,8 @@ export interface GNode {
   st?: string;
   /** outside the series (project `external`): no project hub, `p` from what it is linked to */
   ext?: true;
+  /** persons and characters: birthday as `MM-DD`, to mark the node on the day */
+  bd?: string;
   x: number;
   y: number;
   m: Metrics;
@@ -251,6 +253,8 @@ export interface PersonDetail {
   names: Names;
   familyName?: Names;
   givenName?: Names;
+  /** `YYYY-MM-DD`, or `MM-DD` without a public year */
+  birthday?: string;
   nativeScript: string;
   aliases: { text: string; kind: string; note?: string }[];
   distinctFrom: string[];
@@ -268,6 +272,8 @@ export interface CharacterDetail {
   names: Names;
   familyName?: Names;
   givenName?: Names;
+  /** `MM-DD` */
+  birthday?: string;
   project: string;
   casting: { person: string; from?: string; until?: string }[];
   memberships: { artist: string; periods: Period[] }[];

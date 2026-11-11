@@ -71,6 +71,7 @@ const UI_PATHS = {
   list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h.01M4 12h.01M4 18h.01"/>',
   graph: '<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.4 6.4l7.2 1.2M7 8.3l2.2 7.4M16.4 10l-4.6 6.2"/>',
   bars: '<path d="M3 21h18"/><path d="M6 17v-5M11 17V6M16 17v-8M21 17v-3"/>',
+  hat: '<path d="M12 6.5 6.5 20.5h11z" fill="currentColor"/><circle cx="12" cy="3.8" r="1.8" fill="currentColor" stroke="none"/>',
 } as const;
 
 export type UiIconName = keyof typeof UI_PATHS;

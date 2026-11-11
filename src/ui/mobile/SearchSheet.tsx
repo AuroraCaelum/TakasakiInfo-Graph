@@ -45,7 +45,7 @@ export function SearchSheet({ forPath, onClose }: { forPath: boolean; onClose: (
         <ul className="m-results">
           {results.map((n) => {
             const sub = subtypeLabel(t, n);
-            const other = otherNames(n.n, s.nameLang)[0]?.text;
+            const other = otherNames(n.n, s.nameLang, s.uiLang)[0]?.text;
             return (
               <li key={n.k}>
                 <button type="button" onClick={() => pick(n.k)}>

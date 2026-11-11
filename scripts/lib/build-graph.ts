@@ -46,6 +46,8 @@ export interface BuiltGraph {
 export const nodeKey = (t: NodeType, id: string) => `${t}:${id}`;
 
 const INSTRUMENTAL = new Set(["off_vocal", "instrumental"]);
+/** `YYYY-MM-DD` or `MM-DD`, a real calendar day (02-29 included) */
+const BIRTHDAY = /^(?:\d{4}-)?(?:(?:0[1-9]|1[0-2])-(?:0[1-9]|1\d|2[0-8])|(?:0[13-9]|1[0-2])-(?:29|30)|(?:0[13578]|1[02])-31|02-29)$/;
 
 interface EdgeAcc {
   s: string;
@@ -77,15 +79,25 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
   };
 
   const ext = (ps: string[]) => (isExternal(ps) ? { ext: true as const } : {});
+  /** a well-formed birthday as `{ bd: "MM-DD" }` for the node; anything else is reported and left out */
+  const birthday = (where: string, b: string | undefined) => {
+    if (!b) return {};
+    if (BIRTHDAY.test(b)) return { bd: b.slice(-5) };
+    warnings.add(`${where}: birthday "${b}" is not YYYY-MM-DD or MM-DD`);
+    return {};
+  };
   for (const p of ds.projects) {
     if (p.id !== EXTERNAL_PROJECT) addNode({ k: nodeKey("project", p.id), t: "project", n: p.names, p: [p.id] });
   }
   for (const p of ds.persons) {
     const al = (p.aliases ?? []).map((a) => a.text);
-    addNode({ k: nodeKey("person", p.id), t: "person", n: p.names, p: [], ...(al.length ? { al } : {}) });
+    addNode({ k: nodeKey("person", p.id), t: "person", n: p.names, p: [], ...(al.length ? { al } : {}), ...birthday(`person ${p.id}`, p.birthday) });
   }
   for (const c of ds.characters) {
-    addNode({ k: nodeKey("character", c.id), t: "character", n: c.names, p: ownProjects([c.project]), ...ext([c.project]) });
+    addNode({
+      k: nodeKey("character", c.id), t: "character", n: c.names, p: ownProjects([c.project]), ...ext([c.project]),
+      ...birthday(`character ${c.id}`, c.birthday),
+    });
   }
   for (const a of ds.artists) {
     const ps = a.projects ?? [];
@@ -672,6 +684,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     details.set(k, {
       t: "person", names: p.names,
       ...(p.family_name ? { familyName: p.family_name } : {}), ...(p.given_name ? { givenName: p.given_name } : {}),
+      ...(p.birthday && BIRTHDAY.test(p.birthday) ? { birthday: p.birthday } : {}),
       nativeScript: p.native_script ?? "ja",
       aliases: (p.aliases ?? []).map((a) => ({ text: a.text, kind: a.kind ?? "variant", ...(a.note ? { note: a.note } : {}) })),
       distinctFrom: (p.distinct_from ?? []).map((id) => nodeKey("person", id)),
@@ -688,6 +701,7 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     details.set(k, {
       t: "character", names: c.names, project: c.project,
       ...(c.family_name ? { familyName: c.family_name } : {}), ...(c.given_name ? { givenName: c.given_name } : {}),
+      ...(c.birthday && BIRTHDAY.test(c.birthday) ? { birthday: c.birthday } : {}),
       casting: (c.casting ?? []).map((x) => ({
         person: nodeKey("person", x.person), ...(x.from ? { from: x.from } : {}), ...(x.until ? { until: x.until } : {}),
       })),

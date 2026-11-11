@@ -10,7 +10,7 @@ import { nameOf } from "./lib/names";
 import { fromQuery, toQuery } from "./lib/url";
 import { computeVisible, type Visible } from "./lib/visibility";
 import { loadGraph, type Model } from "./model";
-import { defaultView, useApp } from "./store";
+import { defaultView, useApp, useFilters } from "./store";
 import { palette as makePalette } from "./theme";
 import { About } from "./ui/About";
 import { DetailPanel } from "./ui/detail/DetailPanel";
@@ -110,13 +110,11 @@ function Shell() {
   const model = useModel();
   useUrlSync(model);
   const phone = useMedia(PHONE);
-  const f = useApp(useShallow((s) => ({
-    types: s.types, drama: s.drama, bgm: s.bgm, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
-    time: s.time, selected: s.selected, focus: s.focus,
+  const filters = useFilters();
+  const { pathOn, pathTo, pathHubs, selected, focus } = useApp(useShallow((s) => ({
+    pathOn: s.pathOn, pathTo: s.pathTo, pathHubs: s.pathHubs, selected: s.selected, focus: s.focus,
   })));
-  const { pathOn, pathTo, pathHubs, selected } = useApp(useShallow((s) => ({
-    pathOn: s.pathOn, pathTo: s.pathTo, pathHubs: s.pathHubs, selected: s.selected,
-  })));
+  const f = useMemo(() => ({ ...filters, selected, focus }), [filters, selected, focus]);
 
   const visible = useMemo(() => computeVisible(model, f), [model, f]);
   const unfocused = useMemo(() => (f.focus ? computeVisible(model, { ...f, focus: 0 }) : visible), [model, f, visible]);

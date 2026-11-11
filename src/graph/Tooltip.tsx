@@ -1,6 +1,7 @@
 import type { GNode } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
-import { TypeIcon } from "../icons";
+import { Icon, TypeIcon } from "../icons";
+import { useBirthdaysToday } from "../lib/birthday";
 import { nameOf, otherNames } from "../lib/names";
 import type { EdgeAttrs } from "../model";
 import { useApp } from "../store";
@@ -15,7 +16,10 @@ export function NodeTip({ node, x, y }: { node: GNode; x: number; y: number }) {
   const p = usePalette();
   const model = useModel();
   const lang = useApp((s) => s.nameLang);
-  const other = otherNames(node.n, lang).slice(0, 1);
+  const ui = useApp((s) => s.uiLang);
+  const birthdays = useBirthdaysToday();
+  const birthday = !!node.bd && birthdays.has(node.bd);
+  const other = otherNames(node.n, lang, ui).slice(0, 1);
   const sub = subtypeLabel(t, node);
   const projects = node.p.map((id) => nameOf(model.nodes.get(`project:${id}`)?.n, lang, id));
   return (
@@ -26,6 +30,7 @@ export function NodeTip({ node, x, y }: { node: GNode; x: number; y: number }) {
         {sub && <span className="muted">· {sub}</span>}
       </div>
       <div className="tip-name">{nameOf(node.n, lang, node.k)}</div>
+      {birthday && <div className="tip-birthday"><Icon name="hat" size={12} strokeWidth={2.4} /> {t.birthdayToday}</div>}
       {other.map((o) => <div key={o.lang} className="tip-sub">{o.text}</div>)}
       <div className="tip-meta">
         {node.d && <span>{node.d}</span>}

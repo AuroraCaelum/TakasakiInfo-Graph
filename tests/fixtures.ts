@@ -38,13 +38,13 @@ export function fixture(): V.V1Dataset {
     },
     { id: "composer", names: { ja: "作曲 花子", rom: "Hanako Sakkyoku", ko: "삿쿄쿠 하나코" } },
     { id: "arranger", names: { rom: "ARR", ja: "ARR", ko: "ARR" }, native_script: "latin" },
-    { id: "cv-one", names: { ja: "声優 一", rom: "Ichi Seiyu" } },
+    { id: "cv-one", names: { ja: "声優 一", rom: "Ichi Seiyu" }, birthday: "1997-05-02" },
     { id: "cv-two", names: { ja: "声優 二", rom: "Ni Seiyu" } },
     { id: "actor", names: { ja: "俳優 三", rom: "San Haiyu" } },
   ];
   const characters: V.Character[] = [
     { id: "alpha/c1", project: "alpha", names: { ja: "一", rom: "C1" }, casting: [{ person: "cv-one", until: "2023-03-31" }, { person: "cv-two", from: "2023-04-01" }] },
-    { id: "alpha/c2", project: "alpha", names: { ja: "二", rom: "C2" }, casting: [{ person: "actor" }] },
+    { id: "alpha/c2", project: "alpha", names: { ja: "二", rom: "C2" }, casting: [{ person: "actor" }], birthday: "08-01" },
     { id: "alpha/c3", project: "alpha", names: { ja: "三", rom: "C3" } },
     { id: "beta/c4", project: "beta", names: { ja: "四", rom: "C4" } },
     { id: "external/guest", project: "external", names: { ja: "ゲスト", rom: "Guest" } },
