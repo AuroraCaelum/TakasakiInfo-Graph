@@ -33,6 +33,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
   const t = useT();
   const p = usePalette();
   const lang = useApp((s) => s.nameLang);
+  const ui = useApp((s) => s.uiLang);
   const id = useId();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
@@ -78,7 +79,7 @@ export const SearchBox = forwardRef<HTMLInputElement, Props>(function SearchBox(
         <ul className="search-results" id={id} role="listbox">
           {results.length === 0 && <li className="search-empty">{t.searchNoResult}</li>}
           {results.map((n, i) => {
-            const other = otherNames(n.n, lang)[0]?.text;
+            const other = otherNames(n.n, lang, ui)[0]?.text;
             const sub = subtypeLabel(t, n);
             return (
               <li

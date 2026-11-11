@@ -1,12 +1,13 @@
 import { useState } from "react";
 
 import { useDetail, useNode, usePalette, useT } from "../../context";
+import { useBirthdaysToday } from "../../lib/birthday";
 import { Icon, TypeIcon } from "../../icons";
 import { nameOf, otherNames } from "../../lib/names";
 import { nodePasses } from "../../lib/visibility";
 import { useApp } from "../../store";
 import type { Tab } from "../../view";
-import { Badge } from "../common";
+import { Badge, BirthdayBadge } from "../common";
 import { subtypeLabel } from "../labels";
 import { DataTab } from "./DataTab";
 import { NeighborsTab } from "./Neighbors";
@@ -22,6 +23,7 @@ export function DetailPanel() {
   const node = useNode(s.selected);
   const { detail, error } = useDetail(s.selected);
   const [copied, setCopied] = useState(false);
+  const birthdays = useBirthdaysToday();
   if (!node) return null;
 
   const sub = subtypeLabel(t, node);
@@ -42,10 +44,11 @@ export function DetailPanel() {
           </span>
           <span>{t.types[node.t]}</span>
           {sub && <Badge>{sub}</Badge>}
+          {node.bd && birthdays.has(node.bd) && <BirthdayBadge />}
         </div>
         <h2 className="detail-title">{nameOf(node.n, s.nameLang, node.k)}</h2>
         <div className="detail-other">
-          {otherNames(node.n, s.nameLang).map((o) => <span key={o.lang} lang={o.lang === "rom" ? "en" : o.lang === "kana" ? "ja" : o.lang}>{o.text}</span>)}
+          {otherNames(node.n, s.nameLang, s.uiLang).map((o) => <span key={o.lang} lang={o.lang === "rom" ? "en" : o.lang === "kana" ? "ja" : o.lang}>{o.text}</span>)}
         </div>
         <button type="button" className="icon-btn detail-close" aria-label={t.close} onClick={() => s.select(null)}>
           <Icon name="close" />

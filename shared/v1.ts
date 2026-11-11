@@ -53,6 +53,8 @@ export interface Person {
   family_name?: Names;
   given_name?: Names;
   native_script?: "ja" | "latin";
+  /** `YYYY-MM-DD`, or `MM-DD` when the year is not public */
+  birthday?: string;
   aliases?: Alias[];
   distinct_from?: string[];
   evidence?: EvidenceMap;
@@ -70,6 +72,8 @@ export interface Character {
   names: Names;
   family_name?: Names;
   given_name?: Names;
+  /** `MM-DD` (characters have no birth year) */
+  birthday?: string;
   casting?: Casting[];
   distinct_from?: string[];
   evidence?: EvidenceMap;

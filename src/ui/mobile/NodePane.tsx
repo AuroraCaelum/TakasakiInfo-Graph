@@ -1,10 +1,11 @@
 import { DERIVED_RELATIONS } from "../../../shared/graph";
 import { useDetail, useNode, usePalette, useT } from "../../context";
 import { Icon, TypeIcon } from "../../icons";
+import { useBirthdaysToday } from "../../lib/birthday";
 import { nameOf, otherNames } from "../../lib/names";
 import { nodePasses, type Visible } from "../../lib/visibility";
 import { useApp } from "../../store";
-import { Badge } from "../common";
+import { Badge, BirthdayBadge } from "../common";
 import { DataTab } from "../detail/DataTab";
 import { NeighborsTab } from "../detail/Neighbors";
 import { OverviewTab } from "../detail/Overview";
@@ -21,6 +22,7 @@ export function NodePane({ onPath, onCopied }: { onPath: () => void; onCopied: (
   const s = useApp();
   const node = useNode(s.selected);
   const { detail, error } = useDetail(s.selected);
+  const birthdays = useBirthdaysToday();
   if (!node) return null;
 
   const name = nameOf(node.n, s.nameLang, node.k);
@@ -35,10 +37,11 @@ export function NodePane({ onPath, onCopied }: { onPath: () => void; onCopied: (
           <TypeDot type={node.t} sub={node.s} size={24} />
           <span>{t.types[node.t]}</span>
           {sub && <Badge>{sub}</Badge>}
+          {node.bd && birthdays.has(node.bd) && <BirthdayBadge />}
         </div>
         <h2 className="m-node-title">{name}</h2>
         <div className="m-node-other">
-          {otherNames(node.n, s.nameLang).map((o) => <span key={o.lang} lang={o.lang === "rom" ? "en" : o.lang === "kana" ? "ja" : o.lang}>{o.text}</span>)}
+          {otherNames(node.n, s.nameLang, s.uiLang).map((o) => <span key={o.lang} lang={o.lang === "rom" ? "en" : o.lang === "kana" ? "ja" : o.lang}>{o.text}</span>)}
         </div>
         <button type="button" className="m-round m-node-close" aria-label={t.close} onClick={() => s.select(null)}>
           <Icon name="close" />

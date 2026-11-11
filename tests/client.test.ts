@@ -8,7 +8,9 @@ import forceAtlas2 from "graphology-layout-forceatlas2";
 import { FA2_DEFAULTS, fa2Settings } from "../shared/layout";
 import noverlap from "graphology-layout-noverlap";
 import { fitInto, layoutGraph, noverlapGraph } from "../src/lib/layouts";
+import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
 import { fandomTab, fandomUrl } from "../src/lib/links";
+import { namePartText, otherNames } from "../src/lib/names";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
 import { computeVisible, type VisibilityInput } from "../src/lib/visibility";
@@ -225,5 +227,45 @@ describe("live layout", () => {
       expect(p.x).toBeCloseTo(at(k).x);
       expect(p.y).toBeCloseTo(at(k).y);
     }
+  });
+});
+
+describe("names", () => {
+  const n = { ja: "佐伯 高志", kana: "さえき たかし", rom: "Takashi Saeki", ko: "사에키 타카시" };
+
+  it("lists the other spellings Korean first on a Korean page, romanisation first otherwise, the kana last", () => {
+    expect(otherNames(n, "rom", "ko").map((o) => o.lang)).toEqual(["ja", "ko", "kana"]);
+    expect(otherNames(n, "ja", "ko").map((o) => o.lang)).toEqual(["ko", "rom", "kana"]);
+    expect(otherNames(n, "ko", "en").map((o) => o.lang)).toEqual(["ja", "rom", "kana"]);
+    expect(otherNames(n, "ja", "ja").map((o) => o.lang)).toEqual(["rom", "ko", "kana"]);
+    expect(otherNames({ ja: "ゲスト", kana: "ゲスト", rom: "Guest" }, "rom", "en").map((o) => o.lang)).toEqual(["ja"]); // kana equal to ja once
+  });
+
+  it("writes a name part with the kana as the reading of ja", () => {
+    expect(namePartText({ ja: "佐伯", kana: "さえき", rom: "Saeki", ko: "사에키" }, "ko")).toBe("佐伯 (さえき) / 사에키 / Saeki");
+    expect(namePartText({ ja: "佐伯", kana: "さえき", rom: "Saeki", ko: "사에키" }, "ja")).toBe("佐伯 (さえき) / Saeki / 사에키");
+    expect(namePartText({ ja: "ARR", kana: "ARR", rom: "ARR" }, "en")).toBe("ARR / ARR");
+  });
+});
+
+describe("birthdays", () => {
+  it("takes today's date in the browser's time zone", () => {
+    expect(localDate(new Date(2026, 10, 11, 23, 59, 59))).toBe("2026-11-11");
+    expect(localDate(new Date(2026, 10, 12, 0, 0, 0))).toBe("2026-11-12");
+    expect(localDate(new Date(2026, 0, 5))).toBe("2026-01-05");
+  });
+
+  it("celebrates 02-29 on 02-28 in common years", () => {
+    expect([...birthdaysOn("2026-08-01")]).toEqual(["08-01"]);
+    expect([...birthdaysOn("2026-02-28")]).toEqual(["02-28", "02-29"]);
+    expect([...birthdaysOn("2028-02-28")]).toEqual(["02-28"]);
+    expect([...birthdaysOn("2028-02-29")]).toEqual(["02-29"]);
+  });
+
+  it("reads a birthday in the UI language, with the year only when there is one", () => {
+    expect(formatBirthday("1997-05-02", "ko")).toBe("1997년 5월 2일");
+    expect(formatBirthday("05-31", "ko")).toBe("5월 31일");
+    expect(formatBirthday("05-31", "en")).toBe("May 31");
+    expect(formatBirthday("02-29", "ja")).toBe("2月29日");
   });
 });
