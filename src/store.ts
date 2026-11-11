@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 import { FA2_DEFAULTS, type Fa2Options } from "../shared/layout";
 import { DEFAULT_NAME_LANG, detectUiLang, type NameLang, type UiLang } from "./i18n";
@@ -126,4 +127,15 @@ export function chooseNoverlap(patch: Partial<NoverlapOptions> | null): void {
   const noverlap = patch ? { ...useApp.getState().noverlap, ...patch } : { ...NOVERLAP_DEFAULTS };
   remember("tg.noverlap", JSON.stringify(noverlap));
   useApp.getState().set({ noverlap });
+}
+
+/**
+ * The filters alone, without the selection: what is on screen apart from the selected node
+ * (kept even when filtered out) and the focus view. Stable while none of them changes.
+ */
+export function useFilters() {
+  return useApp(useShallow((s) => ({
+    types: s.types, drama: s.drama, bgm: s.bgm, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
+    time: s.time,
+  })));
 }

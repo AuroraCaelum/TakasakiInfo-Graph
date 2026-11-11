@@ -1,6 +1,6 @@
 import EdgeCurveProgram from "@sigma/edge-curve";
 import { createNodeImageProgram } from "@sigma/node-image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Sigma from "sigma";
 import { createNodeCompoundProgram, EdgeRectangleProgram, NodeCircleProgram, type NodeProgramType } from "sigma/rendering";
 import type { NodeDisplayData, EdgeDisplayData } from "sigma/types";
@@ -15,9 +15,9 @@ import { classOf, colorOf } from "../lib/classes";
 import { focusLayout } from "../lib/focus-layout";
 import { runLayout, type Point } from "../lib/layouts";
 import { nameOf } from "../lib/names";
-import type { Visible } from "../lib/visibility";
+import { computeVisible, type Visible } from "../lib/visibility";
 import type { EdgeAttrs, NodeAttrs } from "../model";
-import { useApp } from "../store";
+import { useApp, useFilters } from "../store";
 import { LayoutSettingsPanel } from "../ui/LayoutSettings";
 import type { Palette } from "../theme";
 import type { ColorBy } from "../view";
@@ -98,6 +98,15 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const restOf = (k: string): Point => rest.current.get(k) ?? model.nodes.get(k)!;
   /** a live layout waits for the animation out of the focus view to end */
   const settleUntil = useRef(0);
+  /**
+   * What a live layout runs over: the filters' nodes, not `visible`, which also holds the
+   * selected node and so changes with every click. A click moves nothing; the filters, the
+   * date and the layout's options do.
+   */
+  const filters = useFilters();
+  const laidOut = useMemo(() => computeVisible(model, { ...filters, selected: null, focus: 0 }), [model, filters]);
+  /** the inputs of the last run that finished (settled, or stopped by the viewer) */
+  const finished = useRef<unknown[] | null>(null);
 
   const state = useRef<RenderState>({
     visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [],
@@ -415,12 +424,20 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       return animateNodes(graph, targets, { duration: 600, easing: "quadraticInOut" });
     }
     if (focused) return;
+    // leaving the focus view resumes a run it cut short, but does not start a finished one over
+    const inputs = [layout, laidOut, model, rerun, options];
+    if (finished.current?.every((x, i) => x === inputs[i])) return;
+    finished.current = null;
     let stop: (() => void) | null = null;
     const end = () => {
       stop?.();
       stop = null;
       stopLive.current = null;
       setRunning(false);
+    };
+    const finish = () => {
+      finished.current = inputs;
+      end();
     };
     // a short wait also merges a burst of filter changes (the time slider playing) into one run
     const id = setTimeout(() => {
@@ -432,21 +449,21 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
         unitsPerPx: Math.hypot(e.x - o.x, e.y - o.y) / 100,
         radiusPx: (k: string) => sigma?.scaleSize(graph.getNodeAttribute(k, "size")) ?? graph.getNodeAttribute(k, "size"),
       };
-      stop = runLayout(layout, model, visible, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
+      stop = runLayout(layout, model, laidOut, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
         for (const [k, p] of pos) rest.current.set(k, p);
         graph.updateEachNodeAttributes((k, a) => {
           const p = pos.get(k);
           if (p) { a.x = p.x; a.y = p.y; }
           return a;
         }, { attributes: ["x", "y"] });
-      }, () => { stop = null; end(); });
-      stopLive.current = end;
+      }, () => { stop = null; finish(); });
+      stopLive.current = finish;
       setRunning(true);
     }, Math.max(120, settleUntil.current - performance.now()));
     return () => { clearTimeout(id); end(); };
-    // `visible` changes as the focus view opens and closes; the run resumes with the latter.
-    // A changed option starts over from where the nodes are, so the picture moves on smoothly.
-  }, [layout, focused, focused ? null : visible, model, rerun, options]);
+    // A changed filter or option starts over from where the nodes are, so the picture moves on
+    // smoothly.
+  }, [layout, focused, laidOut, model, rerun, options]);
 
   const cam = () => sigmaRef.current?.getCamera();
   // a live layout settles and stops by itself; this stops it early or runs it again
