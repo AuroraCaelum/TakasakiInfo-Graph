@@ -63,7 +63,7 @@ export function App() {
   }, [theme]);
   useEffect(() => {
     document.documentElement.lang = uiLang;
-    document.title = t.appTitle;
+    document.title = t.siteTitle;
   }, [uiLang, t]);
 
   if (error) {

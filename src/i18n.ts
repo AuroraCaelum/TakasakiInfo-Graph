@@ -21,7 +21,9 @@ export const DEFAULT_NAME_LANG: Record<UiLang, NameLang> = { ko: "ko", en: "rom"
 
 const ko = {
   appTitle: "TakasakiInfo 연결 맵",
-  appTagline: "러브 라이브! 곡·발매물·인물·캐릭터의 관계",
+  /** the browser tab's title */
+  siteTitle: "TakasakiInfo - 러브 라이브 DB",
+  appTagline: "러브 라이브! 관계 데이터베이스",
   loading: "데이터를 불러오는 중…",
   loadError: "데이터를 불러오지 못했습니다.",
   search: "검색: 일본어·가나·로마자·한국어",
@@ -257,7 +259,7 @@ const ko = {
   swap: "바꾸기",
   // about
   about: "정보",
-  aboutBody: "TakasakiInfo 데이터베이스(v1)의 모든 엔티티를 노드로, 관계를 연결로 그린 지도입니다. 사실 연결은 데이터의 관계 행에서만 만들고, 파생 연결은 규칙으로 계산해 따로 표시합니다.",
+  aboutBody: "TakasakiInfo 데이터베이스의 모든 엔티티를 노드로, 관계를 연결로 그린 지도입니다.",
   dataVersion: "데이터 버전",
   builtAt: "빌드",
   sourceRepo: "원본 데이터",
@@ -337,7 +339,8 @@ export type Dict = typeof ko;
 
 const en: Dict = {
   appTitle: "TakasakiInfo Graph",
-  appTagline: "How Love Live! songs, releases, people and characters connect",
+  siteTitle: "TakasakiInfo - Love Live DB",
+  appTagline: "A relational database of Love Live!",
   loading: "Loading data…",
   loadError: "Could not load the data.",
   search: "Search in Japanese, kana, romaji or Korean",
@@ -569,7 +572,7 @@ const en: Dict = {
   pathHint: "Follows visible links only. Among equally short paths, stronger links win.",
   swap: "Swap",
   about: "About",
-  aboutBody: "Every entity of the TakasakiInfo database (v1) as a node, every relation as a link. Fact links come only from relation rows in the data; derived links are computed by rules and drawn apart.",
+  aboutBody: "Every entity of the TakasakiInfo database as a node, every relation as a link.",
   dataVersion: "Data version",
   builtAt: "Built",
   sourceRepo: "Source data",
@@ -642,7 +645,8 @@ const en: Dict = {
 
 const ja: Dict = {
   appTitle: "TakasakiInfo 関係マップ",
-  appTagline: "ラブライブ！の楽曲・リリース・人物・キャラクターのつながり",
+  siteTitle: "TakasakiInfo - ラブライブ DB",
+  appTagline: "ラブライブ！関係データベース",
   loading: "データを読み込み中…",
   loadError: "データを読み込めませんでした。",
   search: "検索：日本語・かな・ローマ字・韓国語",
@@ -874,7 +878,7 @@ const ja: Dict = {
   pathHint: "表示中のリンクだけをたどります。同じ長さなら強いリンクを優先します。",
   swap: "入れ替え",
   about: "このサイトについて",
-  aboutBody: "TakasakiInfo データベース（v1）のすべてのエンティティをノード、関係をリンクとして描いた地図です。事実のリンクはデータの関係行からのみ作り、派生リンクはルールで計算して区別して表示します。",
+  aboutBody: "TakasakiInfo データベースのすべてのエンティティをノード、関係をリンクとして描いた地図です。",
   dataVersion: "データのバージョン",
   builtAt: "ビルド",
   sourceRepo: "元データ",
