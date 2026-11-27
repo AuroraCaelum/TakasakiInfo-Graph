@@ -10,6 +10,8 @@ import { chooseNameLang, chooseTheme, chooseUiLang, useApp } from "../../store";
 import type { Tab, ThemeChoice } from "../../view";
 import { About } from "../About";
 import { LayoutSettings, ResetLayout } from "../LayoutSettings";
+import { PlayerButton } from "../Player";
+import { TodayButton, TodayPane } from "../TodayPanel";
 import { useTimeline } from "../TimeBar";
 import { NAME_LANG_MARK, THEME_ICON, UI_LANG_LABEL } from "../TopBar";
 import { FilterSheet } from "./FilterSheet";
@@ -44,10 +46,20 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
   const [toast, setToast] = useState("");
   const split = useSplit();
   const pane = useRef<HTMLDivElement>(null);
+  /** where the player's drop-down lives: in the pane, kept while hidden so the music plays on */
+  const [playerSlot, setPlayerSlot] = useState<HTMLDivElement | null>(null);
+  const popover = s.popover;
 
   const pathKey = path?.nodes.join("|") ?? null;
   useEffect(() => { setStep(null); }, [pathKey, pathMode]);
-  useEffect(() => { pane.current?.scrollTo(0, 0); }, [s.selected, s.tab, pathMode, overlay === "layout"]);
+  useEffect(() => { pane.current?.scrollTo(0, 0); }, [s.selected, s.tab, pathMode, overlay === "layout", popover]);
+  // the drop-downs take the node's place in the pane: picking a node (a name in the list, the
+  // song playing) shows that node again
+  const lastSelected = useRef(s.selected);
+  useEffect(() => {
+    if (s.selected !== lastSelected.current && s.selected) s.set({ popover: null });
+    lastSelected.current = s.selected;
+  }, [s.selected]); // only a change of selection, not every store update
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 1600);
@@ -78,7 +90,7 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
       setOverlay("path");
     }
   };
-  const open = (o: Overlay) => { setMenu(false); setOverlay(o); };
+  const open = (o: Overlay) => { setMenu(false); setOverlay(o); if (o === "layout") s.set({ popover: null }); };
 
   return (
     <div ref={split.root} className="m-app">
@@ -95,7 +107,10 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
 
       <div ref={pane} className="m-pane">
         {/* the layout's settings take the node's place, so the graph stays in sight as it moves */}
+        <div ref={setPlayerSlot} className="m-player-slot" />
         {overlay === "layout" ? <LayoutPane onClose={() => setOverlay(null)} />
+          : popover === "today" ? <TodayPane visible={visible} />
+          : popover === "player" ? null
           : pathMode ? <PathPane path={path} step={step} onStep={setStep} onPickTo={() => open("path")} />
           : s.selected ? <NodePane onPath={toPath} onCopied={() => setToast(t.linkCopied)} />
           : <Welcome visible={visible} />}
@@ -103,10 +118,10 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
 
       <nav className="m-tabs" role="tablist">
         {TABS.map(([tab, icon]) => {
-          const on = !!s.selected && !pathMode && overlay !== "layout" && s.tab === tab;
+          const on = !!s.selected && !pathMode && overlay !== "layout" && !popover && s.tab === tab;
           return (
             <button key={tab} type="button" role="tab" aria-selected={on} disabled={!s.selected} className={on ? "on" : ""}
-              onClick={() => { if (overlay === "layout") setOverlay(null); s.set({ tab, pathOn: false }); }}>
+              onClick={() => { if (overlay === "layout") setOverlay(null); s.set({ tab, pathOn: false, popover: null }); }}>
               <Icon name={icon} size={22} />
               <span>{t.tabs[tab]}</span>
             </button>
@@ -114,20 +129,22 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
         })}
       </nav>
 
-      {pathMode ? <PathCard onPickTo={() => open("path")} /> : (
-        <div className="m-top">
-          <button type="button" className="fab" aria-label={t.openFilters} title={t.filters} onClick={() => open("filters")}>
-            <Icon name="filter" size={20} />
-          </button>
-          <button type="button" className="m-search-pill" onClick={() => open("search")}>
-            <Icon name="search" />
-            <span>{t.searchShort}</span>
-          </button>
-          <button type="button" className="fab m-names" aria-label={t.display} aria-expanded={menu} onClick={() => setMenu(!menu)}>
-            {NAME_LANG_MARK[s.nameLang]}
-          </button>
-        </div>
-      )}
+      {pathMode && <PathCard onPickTo={() => open("path")} />}
+      {/* hidden, not unmounted, during a path: the player in it keeps playing */}
+      <div className="m-top" hidden={pathMode}>
+        <button type="button" className="fab" aria-label={t.openFilters} title={t.filters} onClick={() => open("filters")}>
+          <Icon name="filter" size={20} />
+        </button>
+        <button type="button" className="m-search-pill" onClick={() => open("search")}>
+          <Icon name="search" />
+          <span>{t.searchShort}</span>
+        </button>
+        <TodayButton visible={visible} phone />
+        <PlayerButton host={playerSlot} />
+        <button type="button" className="fab m-names" aria-label={t.display} aria-expanded={menu} onClick={() => setMenu(!menu)}>
+          {NAME_LANG_MARK[s.nameLang]}
+        </button>
+      </div>
       {menu && !pathMode && <DisplayMenu onClose={() => setMenu(false)} onAbout={() => open("about")} onLayout={() => open("layout")} />}
 
       {(overlay === "search" || overlay === "path") && <SearchSheet forPath={overlay === "path"} onClose={() => setOverlay(null)} />}

@@ -23,10 +23,18 @@ const LIST_MAX = 6;
 
 const monthDay = (date: string) => [Number(date.slice(5, 7)), Number(date.slice(8, 10))] as const;
 
-export function TodayButton({ visible }: { visible: Visible }) {
+/** `phone`: a round button only; the phone shell shows the list in the pane under the graph. */
+export function TodayButton({ visible, phone = false }: { visible: Visible; phone?: boolean }) {
   const t = useT();
   const today = useToday();
   const { open, close, toggle } = usePopover("today");
+  if (phone) {
+    return (
+      <button type="button" className={`fab${open ? " on" : ""}`} aria-expanded={open} aria-label={t.dayOpen} onClick={toggle}>
+        <Icon name="calendar" size={20} />
+      </button>
+    );
+  }
   return (
     <div className="pop-anchor">
       <button
@@ -41,7 +49,14 @@ export function TodayButton({ visible }: { visible: Visible }) {
   );
 }
 
-function TodayPanel({ visible, today, onClose }: { visible: Visible; today: string; onClose: () => void }) {
+/** The list on its own, in the pane under the graph on phones. */
+export function TodayPane({ visible }: { visible: Visible }) {
+  const today = useToday();
+  const { close } = usePopover("today");
+  return <TodayPanel visible={visible} today={today} onClose={close} inline />;
+}
+
+function TodayPanel({ visible, today, onClose, inline = false }: { visible: Visible; today: string; onClose: () => void; inline?: boolean }) {
   const t = useT();
   const model = useModel();
   const nameLang = useApp((s) => s.nameLang);
@@ -72,7 +87,7 @@ function TodayPanel({ visible, today, onClose }: { visible: Visible; today: stri
   const isToday = date === today;
   const [m, d] = monthDay(date);
   return (
-    <div className="pop today-pop" role="dialog" aria-labelledby="today-title">
+    <div className={`pop today-pop${inline ? " pop-inline" : ""}`} role="dialog" aria-labelledby="today-title">
       <header className="pop-head">
         <button type="button" className="icon-btn small" title={t.dayPrev} aria-label={t.dayPrev} onClick={() => { setDate(shiftDate(date, -1)); setPicking(false); }}>
           <Icon name="back" size={16} />

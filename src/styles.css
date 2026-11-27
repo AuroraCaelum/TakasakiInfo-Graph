@@ -770,7 +770,33 @@ details.more summary { font-size: 12px; color: var(--accent-ink); cursor: pointe
   font-size: 15px; color: var(--muted); text-align: left;
 }
 .m-search-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-top[hidden] { display: none; }
 .m-names { font-size: 15px; font-weight: 600; }
+.m-top .fab.on, .player-fab[aria-expanded="true"] { background: var(--ink); color: var(--surface); }
+.player-fab .eq { width: 16px; height: 15px; }
+
+/* the top bar's drop-downs in the pane under the graph, in the node's place */
+.m-pane { position: relative; }
+.pop.pop-inline {
+  position: static; width: auto; max-width: none; max-height: none; border: 0; border-radius: 0; box-shadow: none; animation: none;
+  font-size: 15px;
+}
+.pop-inline.pop-hidden { position: absolute; top: 0; left: 0; right: 0; height: 0; overflow: hidden; }
+.pop-inline .pop-head { position: sticky; top: 0; z-index: 1; background: var(--surface); padding: 8px 8px 8px 12px; }
+.pop-inline .pop-head h2 { font-size: 16px; }
+.pop-inline .pop-body { overflow: visible; padding: 4px 8px 24px; }
+.pop-inline .icon-btn.small { width: 40px; height: 40px; }
+.pop-inline .day-sec li { font-size: 14.5px; padding: 7px 6px; }
+.pop-inline .day-sec h3 { font-size: 12.5px; }
+.pop-inline .day-cal-day { height: 46px; font-size: 15px; }
+.pop-inline .yt-frame { margin: 10px 12px 0; }
+.pop-inline .player-progress { margin: 8px 12px 0; }
+.pop-inline .player-now { padding: 10px 12px 12px 14px; }
+.pop-inline .player-title { font-size: 16px; }
+.pop-inline .player-sub { font-size: 13px; }
+.pop-inline .transport { gap: 6px; }
+.pop-inline .play-btn { width: 48px; height: 48px; }
+.pop-inline .player-next { padding: 10px 14px 14px; font-size: 14px; }
 .m-names[aria-expanded="true"] { background: var(--ink); color: var(--surface); }
 
 .m-scrim-clear { position: absolute; inset: 0; z-index: 25; }

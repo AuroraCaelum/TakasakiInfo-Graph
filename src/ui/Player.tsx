@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import type { GNode, NodeType } from "../../shared/graph";
 import { useModel, useT } from "../context";
@@ -34,7 +35,12 @@ function shuffle<T>(xs: T[]): T[] {
   return out;
 }
 
-export function PlayerButton() {
+/**
+ * `host`: on phones the drop-down lives in the pane under the graph instead of under the button;
+ * it is drawn into that element (and still hidden, not unmounted, while closed).
+ */
+export function PlayerButton({ host }: { host?: HTMLElement | null } = {}) {
+  const phone = host !== undefined;
   const t = useT();
   const model = useModel();
   const filters = useFilters();
@@ -201,6 +207,60 @@ export function PlayerButton() {
   const playing = status === "playing";
   const message = status === "error" ? t.loadError : status === "loading" ? t.playerLoading : !pool.size ? t.playerEmpty : null;
 
+  // hidden, not unmounted, while closed: the video keeps playing
+  const panel = (
+    <div className={`pop player-pop${phone ? " pop-inline" : ""}${open ? "" : " pop-hidden"}`} role="dialog" aria-label={t.player} aria-hidden={!open}>
+      <header className="pop-head">
+        <h2>{t.player}</h2>
+        <span className="pop-sub tabular" title={t.playerHint}>{t.playerPool(pool.size)}</span>
+        <button type="button" className="icon-btn small pop-close" aria-label={t.close} onClick={close}><Icon name="close" size={16} /></button>
+      </header>
+      <div className={`yt-frame${node ? "" : " empty"}`} ref={frame} />
+      <div className="player-progress" aria-hidden="true"><i style={{ width: `${progress * 100}%` }} /></div>
+      <div className="player-now">
+        <div className="player-meta">
+          {node ? (
+            <button type="button" className="player-title" title={t.playerShow} onClick={() => select(node.k)}>{name(node)}</button>
+          ) : null}
+          {node && sub && <span className="player-sub">{sub}</span>}
+          {message && <span className="player-sub">{message}</span>}
+        </div>
+        <div className="transport" role="group">
+          <button type="button" className="icon-btn small" title={t.playerPrev} aria-label={t.playerPrev} disabled={!node} onClick={prev}>
+            <Icon name="prev" size={16} />
+          </button>
+          <button
+            type="button" className="icon-btn play-btn" title={playing ? t.pause : t.play} aria-label={playing ? t.pause : t.play}
+            disabled={!node && !pool.size} onClick={node ? playPause : onButton}
+          >
+            <Icon name={playing ? "pause" : "play"} size={18} />
+          </button>
+          <button type="button" className="icon-btn small" title={t.playerNext} aria-label={t.playerNext} disabled={!pool.size} onClick={next}>
+            <Icon name="next" size={16} />
+          </button>
+        </div>
+      </div>
+      {upNext && (
+        <div className="player-next">
+          <span>{t.playerUpNext}</span>
+          <button type="button" onClick={next}>{name(model.nodes.get(upNext))}</button>
+        </div>
+      )}
+    </div>
+  );
+  if (phone) {
+    return (
+      <>
+        <button
+          type="button" className={`fab player-fab${open ? " on" : ""}`} aria-expanded={open} aria-label={node ? `${t.player} · ${name(node)}` : t.player}
+          onClick={onButton}
+        >
+          {node ? <Eq playing={playing} /> : <Icon name="shuffle" size={20} />}
+        </button>
+        {host && createPortal(panel, host)}
+      </>
+    );
+  }
   return (
     <div className="pop-anchor">
       <button
@@ -210,45 +270,7 @@ export function PlayerButton() {
         {node ? <Eq playing={playing} /> : <Icon name="shuffle" size={16} />}
         <span className="pop-btn-label">{node ? name(node) : t.player}</span>
       </button>
-      {/* hidden, not unmounted, while closed: the video keeps playing */}
-      <div className={`pop player-pop${open ? "" : " pop-hidden"}`} role="dialog" aria-label={t.player} aria-hidden={!open}>
-        <header className="pop-head">
-          <h2>{t.player}</h2>
-          <span className="pop-sub tabular" title={t.playerHint}>{t.playerPool(pool.size)}</span>
-          <button type="button" className="icon-btn small pop-close" aria-label={t.close} onClick={close}><Icon name="close" size={16} /></button>
-        </header>
-        <div className={`yt-frame${node ? "" : " empty"}`} ref={frame} />
-        <div className="player-progress" aria-hidden="true"><i style={{ width: `${progress * 100}%` }} /></div>
-        <div className="player-now">
-          <div className="player-meta">
-            {node ? (
-              <button type="button" className="player-title" title={t.playerShow} onClick={() => select(node.k)}>{name(node)}</button>
-            ) : null}
-            {node && sub && <span className="player-sub">{sub}</span>}
-            {message && <span className="player-sub">{message}</span>}
-          </div>
-          <div className="transport" role="group">
-            <button type="button" className="icon-btn small" title={t.playerPrev} aria-label={t.playerPrev} disabled={!node} onClick={prev}>
-              <Icon name="prev" size={16} />
-            </button>
-            <button
-              type="button" className="icon-btn play-btn" title={playing ? t.pause : t.play} aria-label={playing ? t.pause : t.play}
-              disabled={!node && !pool.size} onClick={node ? playPause : onButton}
-            >
-              <Icon name={playing ? "pause" : "play"} size={18} />
-            </button>
-            <button type="button" className="icon-btn small" title={t.playerNext} aria-label={t.playerNext} disabled={!pool.size} onClick={next}>
-              <Icon name="next" size={16} />
-            </button>
-          </div>
-        </div>
-        {upNext && (
-          <div className="player-next">
-            <span>{t.playerUpNext}</span>
-            <button type="button" onClick={next}>{name(model.nodes.get(upNext))}</button>
-          </div>
-        )}
-      </div>
+      {panel}
     </div>
   );
 }
