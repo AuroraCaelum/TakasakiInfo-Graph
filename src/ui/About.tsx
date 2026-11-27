@@ -34,6 +34,7 @@ export function About({ onClose }: { onClose: () => void }) {
           ["commit", meta.sha ? <ExtLink href={`${REPO}/commit/${meta.sha}`}>{meta.sha.slice(0, 7)}</ExtLink> : null],
           [t.builtAt, <span className="tabular">{meta.builtAt.slice(0, 16).replace("T", " ")} UTC</span>],
           [t.sourceRepo, <ExtLink href={REPO}>AuroraCaelum/TakasakiInfo</ExtLink>],
+          ["API", <ExtLink href="./api/">{t.apiDocs}</ExtLink>],
         ]} />
         <ul className="count-list">
           {NODE_TYPES.map((type) => (

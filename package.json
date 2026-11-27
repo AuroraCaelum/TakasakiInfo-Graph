@@ -24,6 +24,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sigma": "3.0.3",
+    "swagger-ui-dist": "5.36.0",
     "zustand": "5.0.15"
   },
   "devDependencies": {
