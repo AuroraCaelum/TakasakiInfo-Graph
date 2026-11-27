@@ -35,7 +35,7 @@ export function NodePane({ onPath, onCopied }: { onPath: () => void; onCopied: (
     <article className="m-node" aria-label={name}>
       <header className="m-node-head">
         <div className="m-node-type">
-          <TypeDot type={node.t} sub={node.s} size={24} />
+          <TypeDot type={node.t} sub={node.s} size={20} />
           <span>{t.types[node.t]}</span>
           {sub && <Badge>{sub}</Badge>}
           {node.bd && birthdays.has(node.bd) && <BirthdayBadge />}
@@ -80,8 +80,8 @@ export function NodePane({ onPath, onCopied }: { onPath: () => void; onCopied: (
   );
 }
 
-/** Before anything is selected: how to start, and what the colors mean. */
-export function Welcome({ visible }: { visible: Visible }) {
+/** How to start, and what the colors mean: the card the legend chip opens over the graph. */
+export function Legend({ visible }: { visible: Visible }) {
   const t = useT();
   const p = usePalette();
   const colorBy = useApp((s) => s.colorBy);
@@ -89,14 +89,12 @@ export function Welcome({ visible }: { visible: Visible }) {
   const entries = useLegendEntries();
   return (
     <div className="m-welcome">
-      <h2>{t.tapNode}</h2>
-      <p>{t.tapNodeHint}</p>
-      <h3>{t.legend}</h3>
+      <p className="m-welcome-hint">{t.tapNodeHint}</p>
       <ul className={`m-legend${colorBy === "type" ? " types" : ""}`}>
         {entries.map((e) => (
           <li key={e.id} className={e.off ? "off" : ""}>
-            <span className="m-dot" style={{ width: 24, height: 24, background: e.color }} aria-hidden="true">
-              {e.icon && <TypeIcon type={e.icon} size={13} style={{ color: p.picto[e.icon] }} strokeWidth={2.6} />}
+            <span className="m-dot" style={{ width: 20, height: 20, background: e.color }} aria-hidden="true">
+              {e.icon && <TypeIcon type={e.icon} size={11} style={{ color: p.picto[e.icon] }} strokeWidth={2.6} />}
             </span>
             <span className="m-legend-label">{e.label}</span>
           </li>

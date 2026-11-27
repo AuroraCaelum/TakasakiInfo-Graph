@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
-import { useT } from "../../context";
+import { usePalette, useT } from "../../context";
 import { GraphView } from "../../graph/GraphView";
 import { NAME_LANGS, UI_LANGS } from "../../i18n";
 import { Icon, type UiIconName } from "../../icons";
@@ -15,7 +15,7 @@ import { TodayButton, TodayPane } from "../TodayPanel";
 import { useTimeline } from "../TimeBar";
 import { NAME_LANG_MARK, THEME_ICON, UI_LANG_LABEL } from "../TopBar";
 import { FilterSheet } from "./FilterSheet";
-import { NodePane, Welcome } from "./NodePane";
+import { Legend as LegendCard, NodePane } from "./NodePane";
 import { Segmented } from "./parts";
 import { PathCard, PathPane } from "./PathPane";
 import { SearchSheet } from "./SearchSheet";
@@ -25,7 +25,7 @@ const SNAPS = [0.32, 0.44, 0.62];
 const TABS: [Tab, UiIconName][] = [["overview", "info"], ["data", "list"], ["neighbors", "graph"], ["related", "bars"]];
 const THEMES: ThemeChoice[] = ["system", "light", "dark"];
 /** How far the floating controls reach into the graph (styles.css: .m-top, .m-path-card, .m-time). */
-const TOP_BAR_BOTTOM = 64;
+const TOP_BAR_BOTTOM = 54;
 const PATH_CARD_BOTTOM = 128;
 const TIME_STRIP_TOP = 62;
 
@@ -92,15 +92,20 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
   };
   const open = (o: Overlay) => { setMenu(false); setOverlay(o); if (o === "layout") s.set({ popover: null }); };
 
+  // nothing to show under the graph: the graph takes the whole screen. The pane stays mounted
+  // (empty, no height): the random player lives in it and keeps playing.
+  const paneOn = overlay === "layout" || !!popover || pathMode || !!s.selected;
+  const tabsOn = paneOn && !!s.selected;
   return (
-    <div ref={split.root} className="m-app">
-      <div className={`m-graph${split.dragging ? " dragging" : ""}`} style={{ height: split.height }}>
+    <div ref={split.root} className={`m-app${paneOn ? "" : " idle"}${tabsOn ? "" : " no-tabs"}`}>
+      <div className={`m-graph${split.dragging ? " dragging" : ""}`} style={{ height: paneOn ? split.height : split.total }}>
         <GraphView
           visible={visible} path={path} compact active={path && step !== null ? path.nodes[step] : null}
           onNodeTap={onNodeTap} onStageTap={() => setMenu(false)}
           inset={{ top: pathMode ? PATH_CARD_BOTTOM : TOP_BAR_BOTTOM, bottom: s.time ? TIME_STRIP_TOP : 0 }}
         />
         {s.time && <TimeStrip />}
+        {!paneOn && <LegendChip visible={visible} lifted={!!s.time} />}
       </div>
 
       <div className="m-handle" {...split.handle} aria-label={t.resize}><span /></div>
@@ -113,7 +118,7 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
           : popover === "player" ? null
           : pathMode ? <PathPane path={path} step={step} onStep={setStep} onPickTo={() => open("path")} />
           : s.selected ? <NodePane onPath={toPath} onCopied={() => setToast(t.linkCopied)} />
-          : <Welcome visible={visible} />}
+          : null}
       </div>
 
       <nav className="m-tabs" role="tablist">
@@ -122,7 +127,7 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
           return (
             <button key={tab} type="button" role="tab" aria-selected={on} disabled={!s.selected} className={on ? "on" : ""}
               onClick={() => { if (overlay === "layout") setOverlay(null); s.set({ tab, pathOn: false, popover: null }); }}>
-              <Icon name={icon} size={22} />
+              <Icon name={icon} size={20} />
               <span>{t.tabs[tab]}</span>
             </button>
           );
@@ -152,6 +157,35 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
       {overlay === "about" && <About onClose={() => setOverlay(null)} />}
       <div className="m-toast" role="status">{toast}</div>
     </div>
+  );
+}
+
+/**
+ * With nothing selected: a small "legend" chip over the bottom of the graph. It opens the
+ * legend (and how to start) in a card; a tap anywhere else closes it.
+ */
+function LegendChip({ visible, lifted }: { visible: Visible; lifted: boolean }) {
+  const t = useT();
+  const p = usePalette();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      {open && <div className="m-scrim-clear" onPointerDown={() => setOpen(false)} />}
+      <div className={`m-legend-dock${lifted ? " lifted" : ""}`}>
+        {open && (
+          <div className="m-legend-card" role="dialog" aria-label={t.legend}>
+            <LegendCard visible={visible} />
+          </div>
+        )}
+        <button type="button" className="m-legend-chip" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <span className="m-legend-dots" aria-hidden="true">
+            {(["work", "person", "release"] as const).map((ty) => <i key={ty} style={{ background: p.type[ty] }} />)}
+          </span>
+          {t.legend}
+          <span className="m-legend-count tabular">{visible.nodes.size.toLocaleString()}</span>
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -285,5 +319,5 @@ function useSplit() {
       e.preventDefault();
     },
   };
-  return { root, height, dragging: drag !== null, handle };
+  return { root, total, height, dragging: drag !== null, handle };
 }

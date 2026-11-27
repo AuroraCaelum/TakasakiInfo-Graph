@@ -38,7 +38,7 @@ export function FilterSheet({ visible, onClose }: { visible: Visible; onClose: (
                 key={type} type="button" role="checkbox" aria-checked={s.types[type]} className={`m-type${s.types[type] ? " on" : ""}`}
                 style={{ borderColor: s.types[type] ? p.type[type] : undefined }} onClick={() => toggleType(type)}
               >
-                <TypeDot type={type} size={28} color={s.types[type] ? undefined : "var(--baseline)"} />
+                <TypeDot type={type} size={24} color={s.types[type] ? undefined : "var(--baseline)"} />
                 <span className="m-type-text">
                   <span className="m-type-name">{t.types[type]}</span>
                   <span className="m-type-count tabular">{(counts[type] ?? 0).toLocaleString()}</span>
@@ -47,7 +47,7 @@ export function FilterSheet({ visible, onClose }: { visible: Visible; onClose: (
             ))}
           </div>
           <SwitchRow on={s.bgm} disabled={!s.types.work} onChange={() => s.set({ bgm: !s.bgm })} label={t.includeBgm} count={bgmCount}
-            lead={<TypeDot type="work" sub="bgm" size={24} />} />
+            lead={<TypeDot type="work" sub="bgm" size={22} />} />
           <SwitchRow on={s.drama} disabled={!s.types.work} onChange={() => s.set({ drama: !s.drama })} label={t.includeDrama} count={dramaCount}
             lead={<TypeDot type="work" size={24} />} />
 

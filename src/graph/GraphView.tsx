@@ -42,6 +42,8 @@ interface RenderState {
   birthdays: string[];
   /** the highlight is a drop-down's spotlight: its nodes are labelled and drawn larger */
   spot: boolean;
+  /** node and edge sizes are drawn at this share: phones draw the whole map on a small stage */
+  scale: number;
 }
 
 type Tip = { kind: "node"; key: string; x: number; y: number } | { kind: "edge"; key: string; x: number; y: number };
@@ -117,7 +119,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const rerunSeen = useRef(rerun);
 
   const state = useRef<RenderState>({
-    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [], spot: false,
+    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [], spot: false, scale: compact ? phoneScale() : 1,
   });
 
   // --- sigma instance ------------------------------------------------------------------------
@@ -154,16 +156,16 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       defaultEdgeType: "line",
       edgeProgramClasses: { line: EdgeRectangleProgram, curve: EdgeCurveProgram },
       labelFont: LABEL_FONT,
-      labelSize: 12,
+      labelSize: compact ? 11 : 12,
       labelWeight: "500",
-      labelDensity: 0.5,
-      labelGridCellSize: 90,
+      labelDensity: compact ? 0.3 : 0.5,
+      labelGridCellSize: compact ? 110 : 90,
       labelRenderedSizeThreshold: 8,
       enableEdgeEvents: true,
       zIndex: true,
       minCameraRatio: 0.015,
       maxCameraRatio: 4,
-      stagePadding: 40,
+      stagePadding: compact ? 14 : 40,
       defaultDrawNodeLabel: (ctx, data, settings) => drawLabel(ctx, data, settings.labelSize, settings.labelWeight),
       defaultDrawNodeHover: (ctx, data, settings) => {
         if (!data.label) return;
@@ -190,7 +192,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       },
       nodeReducer: (key, data) => {
         const s = st.current;
-        const res: Partial<NodeDisplayData> & Partial<NodeAttrs> = { ...data };
+        const res: Partial<NodeDisplayData> & Partial<NodeAttrs> = { ...data, size: data.size * s.scale };
         if (!s.visible.nodes.has(key)) {
           res.hidden = true;
           return res;
@@ -203,7 +205,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
           res.pictoColor = s.colorBy === "type" ? s.palette.picto[n.t] : "#ffffff";
           res.zIndex = s.nodes ? 2 : n.t === "project" ? 1 : 0;
           if (n.t === "project" || (s.nodes && s.nodes.size <= (s.spot ? 40 : 12))) res.forceLabel = true;
-          if (s.spot) res.size = data.size * 1.4 + 1.5;
+          if (s.spot) res.size = res.size! * 1.4 + 1.5;
         } else {
           res.color = s.palette.dim;
           res.pictoColor = s.palette.dim;
@@ -213,7 +215,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
         if (key === s.selected) {
           res.highlighted = true;
           res.forceLabel = true;
-          res.size = data.size * 1.35 + 2;
+          res.size = res.size! * 1.35 + 2;
           res.zIndex = 3;
         } else if (key === s.active) {
           res.highlighted = true;
@@ -224,7 +226,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       },
       edgeReducer: (key, data) => {
         const s = st.current;
-        const res: Partial<EdgeDisplayData> = { ...data };
+        const res: Partial<EdgeDisplayData> = { ...data, size: data.size * (0.4 + 0.6 * s.scale) };
         if (!s.visible.edges.has(key)) {
           res.hidden = true;
           return res;
@@ -233,7 +235,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
         if (s.edges) {
           if (s.edges.has(key)) {
             res.color = data.derived ? p.derivedStrong : p.edgeStrong;
-            res.size = data.size * 1.5 + 0.5;
+            res.size = res.size! * 1.5 + 0.5;
             res.zIndex = 2;
           } else {
             res.color = p.edgeFaint;
@@ -525,6 +527,15 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       {!compact && settingsOpen && <LayoutSettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );
+}
+
+/**
+ * The share of their size nodes and edges are drawn at on a phone: by the screen's area against
+ * a desktop stage (about 1100×800), a little under, so the whole map fits without merging into one blot.
+ */
+function phoneScale(): number {
+  const area = window.innerWidth * window.innerHeight;
+  return Math.min(1, Math.max(0.5, 0.9 * Math.sqrt(area / (1100 * 800))));
 }
 
 /** Party hat colors: a hue no node type uses up close (persons are orange, characters yellow). */
