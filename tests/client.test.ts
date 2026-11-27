@@ -6,8 +6,7 @@ import { buildGraph } from "../scripts/lib/build-graph";
 import { personalizedPageRank, shortestPath, similarNodes } from "../src/lib/analysis";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { FA2_DEFAULTS, fa2Settings } from "../shared/layout";
-import noverlap from "graphology-layout-noverlap";
-import { fitInto, layoutGraph, noverlapGraph } from "../src/lib/layouts";
+import { fitInto, layoutGraph } from "../src/lib/layouts";
 import { audioPasses, audioSummary, formatDuration, keyText, parseBpm } from "../src/lib/audio";
 import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
 import { fandomTab, fandomUrl } from "../src/lib/links";
@@ -16,7 +15,7 @@ import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
 import { computeVisible, sameVisible, type VisibilityInput } from "../src/lib/visibility";
 import { buildModel } from "../src/model";
-import { cloneFilters, NOVERLAP_DEFAULTS, type ViewState } from "../src/view";
+import { cloneFilters, type ViewState } from "../src/view";
 import { fixture } from "./fixtures";
 
 const built = buildGraph(fixture());
@@ -252,26 +251,6 @@ describe("live layout", () => {
     expect(() => forceAtlas2.assign(g, { iterations: 2, settings: flipped })).not.toThrow();
     expect(fa2Settings(100, FA2_DEFAULTS)).toEqual(fa2Settings(100));
     expect(fa2Settings(100)).toMatchObject({ gravity: 0.05, scalingRatio: 6, strongGravityMode: true, linLogMode: false });
-  });
-
-  it("sizes Noverlap's nodes as drawn at the zoom it runs at, and spaces them apart", () => {
-    // every node stacked on one spot, drawn 4 px wide at 0.5 map units per pixel
-    const options = { fa2: FA2_DEFAULTS, noverlap: { ...NOVERLAP_DEFAULTS, ratio: 1.5 }, view: { unitsPerPx: 0.5, radiusPx: () => 4 } };
-    const g = noverlapGraph(v, () => ({ x: 0, y: 0 }), options);
-    expect(g.order).toBe(v.nodes.size);
-    expect(g.size).toBe(0);
-    g.forEachNode((_k, a) => expect(a.size).toBeCloseTo(4 * 0.5 * 1.5));
-    // the spacing the worker applies clears most overlaps (where nodes crowd, a few jostle on)
-    g.forEachNode((k, a) => { a.x = k.length; a.y = k.charCodeAt(k.length - 1) % 7; }); // a few crowded spots
-    const overlapping = () => {
-      const ns = g.mapNodes((_k, a) => a);
-      let n = 0;
-      for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) if (Math.hypot(ns[i].x - ns[j].x, ns[i].y - ns[j].y) < ns[i].size + ns[j].size) n++;
-      return n;
-    };
-    const before = overlapping();
-    noverlap.assign(g, { maxIterations: 300, settings: { margin: 0, ratio: 1 } });
-    expect(overlapping()).toBeLessThan(before * 0.2);
   });
 
   it("fits a frame back where the nodes started: unchanged positions stay put", () => {

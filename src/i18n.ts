@@ -1,6 +1,5 @@
 import type { NodeType, Relation } from "../shared/graph";
 import type { Fa2Options } from "../shared/layout";
-import type { LayoutName, NoverlapOptions } from "./view";
 
 export type UiLang = "ko" | "en" | "ja";
 export type NameLang = "ja" | "rom" | "ko";
@@ -23,20 +22,10 @@ const ko = {
   uiLang: "화면 언어",
   theme: "테마",
   themes: { system: "시스템", light: "라이트", dark: "다크" },
-  layout: "배치 알고리즘",
-  layouts: { preset: "기본 배치", fa2: "ForceAtlas2", noverlap: "Noverlap" } as Record<LayoutName, string>,
-  /** the phone menu's narrow buttons */
-  layoutsShort: { preset: "기본", fa2: "ForceAtlas2", noverlap: "Noverlap" } as Record<LayoutName, string>,
   layoutRun: "배치 다시 실행",
   layoutStop: "배치 멈춤",
-  layoutSettings: { fa2: "ForceAtlas2 설정", noverlap: "Noverlap 설정" } as Record<Exclude<LayoutName, "preset">, string>,
+  layoutSettings: "ForceAtlas2 설정",
   layoutDefaults: "기본값",
-  noverlapAbout: "겹친 노드만 조금씩 밀어냅니다. 지금 확대 수준을 기준으로 하니, 확대를 바꾼 뒤에는 ▶로 다시 실행하세요.",
-  noverlapOptions: { margin: "여백", ratio: "크기 배율" } as Record<keyof NoverlapOptions, string>,
-  noverlapHints: {
-    margin: "노드 사이에 둘 간격 (화면 픽셀)",
-    ratio: "노드를 이만큼 크다고 보고 띄웁니다",
-  } as Record<keyof NoverlapOptions, string>,
   fa2Options: {
     linLog: "LinLog 모드", dissuadeHubs: "허브 분산", strongGravity: "강한 중력",
     approximate: "근사 반발 (Barnes-Hut)", scaling: "스케일링", gravity: "중력", edgeWeightInfluence: "엣지 가중치 영향",
@@ -296,19 +285,10 @@ const en: Dict = {
   uiLang: "Language",
   theme: "Theme",
   themes: { system: "System", light: "Light", dark: "Dark" },
-  layout: "Layout",
-  layouts: { preset: "Default layout", fa2: "ForceAtlas2", noverlap: "Noverlap" },
-  layoutsShort: { preset: "Default", fa2: "ForceAtlas2", noverlap: "Noverlap" },
   layoutRun: "Run the layout again",
   layoutStop: "Stop the layout",
-  layoutSettings: { fa2: "ForceAtlas2 settings", noverlap: "Noverlap settings" },
+  layoutSettings: "ForceAtlas2 settings",
   layoutDefaults: "Defaults",
-  noverlapAbout: "Nudges only overlapping nodes apart, for the current zoom: after zooming, run it again with ▶.",
-  noverlapOptions: { margin: "Margin", ratio: "Size ratio" },
-  noverlapHints: {
-    margin: "Room kept between nodes (screen pixels)",
-    ratio: "Spaces nodes as if they were this much larger",
-  },
   fa2Options: {
     linLog: "LinLog mode", dissuadeHubs: "Dissuade hubs", strongGravity: "Stronger gravity",
     approximate: "Approximate repulsion (Barnes-Hut)", scaling: "Scaling", gravity: "Gravity", edgeWeightInfluence: "Edge weight influence",
@@ -561,19 +541,10 @@ const ja: Dict = {
   uiLang: "表示言語",
   theme: "テーマ",
   themes: { system: "システム", light: "ライト", dark: "ダーク" },
-  layout: "レイアウト",
-  layouts: { preset: "標準レイアウト", fa2: "ForceAtlas2", noverlap: "Noverlap" },
-  layoutsShort: { preset: "標準", fa2: "ForceAtlas2", noverlap: "Noverlap" },
   layoutRun: "レイアウトを再実行",
   layoutStop: "レイアウトを停止",
-  layoutSettings: { fa2: "ForceAtlas2 の設定", noverlap: "Noverlap の設定" },
+  layoutSettings: "ForceAtlas2 の設定",
   layoutDefaults: "既定値",
-  noverlapAbout: "重なったノードだけを少しずつ押し離します。今の拡大率が基準なので、拡大を変えたら ▶ で再実行してください。",
-  noverlapOptions: { margin: "余白", ratio: "サイズ倍率" },
-  noverlapHints: {
-    margin: "ノード同士の間隔（画面ピクセル）",
-    ratio: "ノードをこの倍率だけ大きいとみなして離します",
-  },
   fa2Options: {
     linLog: "LinLog モード", dissuadeHubs: "ハブを分散", strongGravity: "強い重力",
     approximate: "反発力の近似 (Barnes-Hut)", scaling: "スケーリング", gravity: "重力", edgeWeightInfluence: "エッジの重みの影響",

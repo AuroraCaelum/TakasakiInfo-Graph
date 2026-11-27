@@ -6,10 +6,10 @@ import { NAME_LANGS, UI_LANGS } from "../../i18n";
 import { Icon, type UiIconName } from "../../icons";
 import type { PathResult } from "../../lib/analysis";
 import type { Visible } from "../../lib/visibility";
-import { chooseLayout, chooseNameLang, chooseTheme, chooseUiLang, useApp } from "../../store";
-import { LAYOUTS, type Tab, type ThemeChoice } from "../../view";
+import { chooseNameLang, chooseTheme, chooseUiLang, useApp } from "../../store";
+import type { Tab, ThemeChoice } from "../../view";
 import { About } from "../About";
-import { LayoutSettings, ResetLayout, type LiveLayout } from "../LayoutSettings";
+import { LayoutSettings, ResetLayout } from "../LayoutSettings";
 import { useTimeline } from "../TimeBar";
 import { NAME_LANG_MARK, THEME_ICON, UI_LANG_LABEL } from "../TopBar";
 import { FilterSheet } from "./FilterSheet";
@@ -48,7 +48,6 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
   const pathKey = path?.nodes.join("|") ?? null;
   useEffect(() => { setStep(null); }, [pathKey, pathMode]);
   useEffect(() => { pane.current?.scrollTo(0, 0); }, [s.selected, s.tab, pathMode, overlay === "layout"]);
-  useEffect(() => { if (s.layout === "preset") setOverlay((o) => (o === "layout" ? null : o)); }, [s.layout]);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(""), 1600);
@@ -96,7 +95,7 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
 
       <div ref={pane} className="m-pane">
         {/* the layout's settings take the node's place, so the graph stays in sight as it moves */}
-        {overlay === "layout" && s.layout !== "preset" ? <LayoutPane layout={s.layout} onClose={() => setOverlay(null)} />
+        {overlay === "layout" ? <LayoutPane onClose={() => setOverlay(null)} />
           : pathMode ? <PathPane path={path} step={step} onStep={setStep} onPickTo={() => open("path")} />
           : s.selected ? <NodePane onPath={toPath} onCopied={() => setToast(t.linkCopied)} />
           : <Welcome visible={visible} />}
@@ -139,7 +138,7 @@ export function MobileShell({ visible, path }: { visible: Visible; path: PathRes
   );
 }
 
-/** Name script, UI language, layout, theme, the time slider and the about box. */
+/** Name script, UI language, layout settings, theme, the time slider and the about box. */
 function DisplayMenu({ onClose, onAbout, onLayout }: { onClose: () => void; onAbout: () => void; onLayout: () => void }) {
   const t = useT();
   const s = useApp();
@@ -152,17 +151,13 @@ function DisplayMenu({ onClose, onAbout, onLayout }: { onClose: () => void; onAb
         <Segmented name={t.nameLang} value={s.nameLang} options={NAME_LANGS} label={(l) => NAME_LANG_MARK[l]} onChange={chooseNameLang} />
         <div className="m-label">{t.uiLang}</div>
         <Segmented name={t.uiLang} value={s.uiLang} options={UI_LANGS} label={(l) => UI_LANG_LABEL[l]} onChange={chooseUiLang} />
-        <div className="m-label">{t.layout}</div>
-        <Segmented name={t.layout} value={s.layout} options={LAYOUTS} label={(l) => t.layoutsShort[l]} onChange={chooseLayout} fit />
-        {s.layout !== "preset" && (
-          <button type="button" className="m-menu-btn" onClick={onLayout}>
-            <Icon name="sliders" />
-            {t.layoutSettings[s.layout]}
-          </button>
-        )}
         <div className="m-label">{t.theme}</div>
         <Segmented name={t.theme} value={s.theme} options={THEMES} onChange={chooseTheme}
           label={(th) => <><Icon name={THEME_ICON[th]} size={16} /><span className="sr-only">{t.themes[th]}</span></>} />
+        <button type="button" className="m-menu-btn" onClick={onLayout}>
+          <Icon name="sliders" />
+          {t.layoutSettings}
+        </button>
         {timeline.range && (
           <button type="button" className="m-menu-btn" aria-pressed={!!s.time} onClick={() => { timeline.toggle(); onClose(); }}>
             <Icon name="clock" />
@@ -179,17 +174,17 @@ function DisplayMenu({ onClose, onAbout, onLayout }: { onClose: () => void; onAb
   );
 }
 
-/** The live layout's settings, in the node's place under the graph. */
-function LayoutPane({ layout, onClose }: { layout: LiveLayout; onClose: () => void }) {
+/** ForceAtlas2's settings, in the node's place under the graph. */
+function LayoutPane({ onClose }: { onClose: () => void }) {
   const t = useT();
   return (
     <div className="m-layout-pane" role="region" aria-labelledby="m-layout-title">
       <header className="m-filters-head">
-        <h2 id="m-layout-title">{t.layoutSettings[layout]}</h2>
-        <ResetLayout layout={layout} className="m-text-btn" />
+        <h2 id="m-layout-title">{t.layoutSettings}</h2>
+        <ResetLayout className="m-text-btn" />
         <button type="button" className="m-round" aria-label={t.close} onClick={onClose}><Icon name="close" /></button>
       </header>
-      <LayoutSettings layout={layout} phone />
+      <LayoutSettings phone />
     </div>
   );
 }

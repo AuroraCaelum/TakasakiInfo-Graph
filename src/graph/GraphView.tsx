@@ -84,12 +84,9 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const selected = useApp((s) => s.selected);
   const focus = useApp((s) => s.focus);
   const legendHover = useApp((s) => s.legendHover);
-  const layout = useApp((s) => s.layout);
+  /** ForceAtlas2's options: a change to them runs it again */
   const fa2 = useApp((s) => s.fa2);
-  const noverlap = useApp((s) => s.noverlap);
   const birthdaysToday = useBirthdaysToday();
-  /** the options of the layout in use: a change to them runs it again */
-  const options = layout === "fa2" ? fa2 : layout === "noverlap" ? noverlap : null;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [rerun, setRerun] = useState(0);
@@ -418,25 +415,17 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     // `visible` matters only while focused: a filter change re-lays the neighbourhood out
   }, [focusKey, focusKey ? visible : null, model]);
 
-  // --- node layout: the precomputed map, or a live run over the visible nodes ------------------
+  // --- node layout: the precomputed map, then a live ForceAtlas2 over the visible nodes --------
   // (the focus view owns the positions while it is open; a live layout resumes after it)
   const focused = !!focusKey;
   useEffect(() => {
     const graph = model.graph;
-    if (layout === "preset") {
-      if (!rest.current.size) return;
-      rest.current.clear();
-      if (focused) return; // leaving the focus view animates to the precomputed map
-      const targets: Record<string, { x: number; y: number }> = {};
-      for (const n of model.list) targets[n.k] = { x: n.x, y: n.y };
-      return animateNodes(graph, targets, { duration: 600, easing: "quadraticInOut" });
-    }
     if (focused) return;
     const pressed = rerun !== rerunSeen.current;
     rerunSeen.current = rerun;
-    if (layout === "fa2" && !rest.current.size && sameVisible(laidOut, openedWith.current) && isDefaultFa2(fa2) && !pressed) return;
+    if (!rest.current.size && sameVisible(laidOut, openedWith.current) && isDefaultFa2(fa2) && !pressed) return;
     // leaving the focus view resumes a run it cut short, but does not start a finished one over
-    const inputs = [layout, laidOut, model, rerun, options];
+    const inputs = [laidOut, model, rerun, fa2];
     if (finished.current?.every((x, i) => x === inputs[i])) return;
     finished.current = null;
     let stop: (() => void) | null = null;
@@ -452,15 +441,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     };
     // a short wait also merges a burst of filter changes (the time slider playing) into one run
     const id = setTimeout(() => {
-      const sigma = sigmaRef.current;
-      // the view the run is sized for (Noverlap spaces nodes for the zoom it starts at)
-      const o = sigma?.viewportToGraph({ x: 0, y: 0 }) ?? { x: 0, y: 0 };
-      const e = sigma?.viewportToGraph({ x: 100, y: 0 }) ?? { x: 100, y: 0 };
-      const view = {
-        unitsPerPx: Math.hypot(e.x - o.x, e.y - o.y) / 100,
-        radiusPx: (k: string) => sigma?.scaleSize(graph.getNodeAttribute(k, "size")) ?? graph.getNodeAttribute(k, "size"),
-      };
-      stop = runLayout(layout, model, laidOut, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
+      stop = runLayout(model, laidOut, (k) => graph.getNodeAttributes(k), fa2, (pos) => {
         for (const [k, p] of pos) rest.current.set(k, p);
         graph.updateEachNodeAttributes((k, a) => {
           const p = pos.get(k);
@@ -474,11 +455,11 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     return () => { clearTimeout(id); end(); };
     // A changed filter or option starts over from where the nodes are, so the picture moves on
     // smoothly.
-  }, [layout, focused, laidOut, model, rerun, options]);
+  }, [focused, laidOut, model, rerun, fa2]);
 
   const cam = () => sigmaRef.current?.getCamera();
   // a live layout settles and stops by itself; this stops it early or runs it again
-  const liveButton = (className: string) => layout !== "preset" && (
+  const liveButton = (className: string) => (
     <button
       type="button" className={className} disabled={focused} aria-pressed={running}
       title={running ? t.layoutStop : t.layoutRun} aria-label={running ? t.layoutStop : t.layoutRun}
@@ -507,14 +488,12 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       ) : (
         <div className="zoom-controls" role="group">
           {liveButton(`icon-btn layout-run${running ? " on" : ""}`)}
-          {layout !== "preset" && (
-            <button
-              type="button" className={`icon-btn layout-sep${settingsOpen ? " on" : ""}`} aria-expanded={settingsOpen}
-              title={t.layoutSettings[layout]} aria-label={t.layoutSettings[layout]} onClick={() => setSettingsOpen(!settingsOpen)}
-            >
-              <Icon name="sliders" />
-            </button>
-          )}
+          <button
+            type="button" className={`icon-btn layout-sep${settingsOpen ? " on" : ""}`} aria-expanded={settingsOpen}
+            title={t.layoutSettings} aria-label={t.layoutSettings} onClick={() => setSettingsOpen(!settingsOpen)}
+          >
+            <Icon name="sliders" />
+          </button>
           <button type="button" className="icon-btn" title={t.zoomIn} aria-label={t.zoomIn} onClick={() => cam()?.animatedZoom({ duration: 250 })}>
             <Icon name="plus" />
           </button>
@@ -526,7 +505,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
           </button>
         </div>
       )}
-      {!compact && layout !== "preset" && settingsOpen && <LayoutSettingsPanel layout={layout} onClose={() => setSettingsOpen(false)} />}
+      {!compact && settingsOpen && <LayoutSettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

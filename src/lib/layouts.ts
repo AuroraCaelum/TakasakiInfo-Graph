@@ -1,37 +1,23 @@
 /**
- * Live layouts: run in the browser over the nodes and fact edges the filters leave, in a web
- * worker, starting from where the nodes are on screen. Every frame is fitted back into the
+ * The live ForceAtlas2: runs in the browser over the nodes and fact edges the filters leave, in
+ * a web worker, starting from where the nodes are on screen. Every frame is fitted back into the
  * area those nodes started in, so the picture grows or shrinks in place instead of drifting
  * off the camera, and the focus view and camera keep working in the same coordinates.
  *
- * ForceAtlas2 starts from the build's forces (shared/layout.ts): with those, over the nodes the
- * build laid out it barely moves from the precomputed map, and over a filtered subset it
- * re-arranges just that subset. The viewer can change them as in Gephi's panel.
- *
- * Noverlap only nudges overlapping nodes apart, as Gephi's does after a ForceAtlas2 run. sigma
- * draws a node at a pixel size that shrinks more slowly than the map as one zooms out, so nodes
- * are apart only from some zoom on: Noverlap spaces them for the zoom it runs at, and is not
- * fitted back into a frame (that would squeeze them together again).
+ * It starts from the build's forces (shared/layout.ts): with those, over the nodes the build
+ * laid out it barely moves from the precomputed map, and over a filtered subset it re-arranges
+ * just that subset. The viewer can change them as in Gephi's panel.
  */
 
 import Graph from "graphology";
 import FA2Layout from "graphology-layout-forceatlas2/worker";
-import NoverlapLayout from "graphology-layout-noverlap/worker";
 
 import { fa2Settings, layoutWeight, type Fa2Options } from "../../shared/layout";
 import type { Model } from "../model";
-import type { LayoutName, NoverlapOptions } from "../view";
 import { globalSpan, type Positions } from "./focus-layout";
 import type { Visible } from "./visibility";
 
 export type Point = { x: number; y: number };
-
-export interface RunOptions {
-  fa2: Fa2Options;
-  noverlap: NoverlapOptions;
-  /** the view the run starts in: map units per screen pixel, and each node's drawn radius in pixels */
-  view: { unitsPerPx: number; radiusPx: (k: string) => number };
-}
 
 /**
  * A run stops once a node's mean move per iteration has stayed below this share of the
@@ -47,11 +33,6 @@ const CALM_ITERATIONS = 60;
  */
 const MIN_MS = 1500;
 const MAX_MS = 45000;
-/**
- * Noverlap stops by itself once nothing overlaps, but where nodes crowd it never gets there: it
- * clears most overlaps in its first hundred or so iterations, then a few nodes jostle forever.
- */
-const NOVERLAP_ITERATIONS = 300;
 
 /** The visible nodes and fact edges as a simple weighted graph, at the positions `at` gives. */
 export function layoutGraph(model: Model, visible: Visible, at: (k: string) => Point): Graph {
@@ -98,23 +79,13 @@ export function fitInto(g: Graph, frame: Frame): Positions {
 }
 
 /**
- * Starts a live layout. `onFrame` gets the visible nodes' positions about once per screen
+ * Starts ForceAtlas2. `onFrame` gets the visible nodes' positions about once per screen
  * refresh; `onEnd` is called when the layout settles (not when it is stopped). Returns stop.
  */
 export function runLayout(
-  name: Exclude<LayoutName, "preset">, model: Model, visible: Visible, at: (k: string) => Point, options: RunOptions,
-  onFrame: (pos: Positions) => void, onEnd: () => void,
-): () => void {
-  switch (name) {
-    case "fa2": return runForceAtlas2(model, visible, at, options.fa2, onFrame, onEnd);
-    case "noverlap": return runNoverlap(visible, at, options, onFrame, onEnd);
-  }
-}
-
-function runForceAtlas2(
   model: Model, visible: Visible, at: (k: string) => Point, fa2: Fa2Options,
   onFrame: (pos: Positions) => void, onEnd: () => void,
-) {
+): () => void {
   const g = layoutGraph(model, visible, at);
   if (g.order < 2) {
     const id = requestAnimationFrame(onEnd);
@@ -157,56 +128,6 @@ function runForceAtlas2(
     onFrame(pos);
     const elapsed = performance.now() - t0;
     if ((calm >= CALM_ITERATIONS && elapsed > MIN_MS) || elapsed > MAX_MS) {
-      stop();
-      onEnd();
-      return;
-    }
-    raf = requestAnimationFrame(tick);
-  };
-  raf = requestAnimationFrame(tick);
-  return stop;
-}
-
-/**
- * The visible nodes at the positions `at` gives, each as large as it is drawn now (in map units,
- * times `ratio`, plus `margin` pixels): what Noverlap keeps apart.
- */
-export function noverlapGraph(visible: Visible, at: (k: string) => Point, { noverlap, view }: RunOptions): Graph {
-  const g = new Graph({ type: "undirected" });
-  for (const k of visible.nodes) {
-    const p = at(k);
-    g.addNode(k, { x: p.x, y: p.y, size: view.radiusPx(k) * view.unitsPerPx * noverlap.ratio });
-  }
-  return g;
-}
-
-function runNoverlap(visible: Visible, at: (k: string) => Point, options: RunOptions, onFrame: (pos: Positions) => void, onEnd: () => void) {
-  const g = noverlapGraph(visible, at, options);
-  const positions = (): Positions => {
-    const out: Positions = new Map();
-    g.forEachNode((k, a) => out.set(k, { x: a.x, y: a.y }));
-    return out;
-  };
-  let done = false;
-  let reduced = 0;
-  // sizes already carry the ratio; the margin is in pixels, so in map units at this zoom
-  const layout = new NoverlapLayout(g, {
-    settings: { margin: options.noverlap.margin * options.view.unitsPerPx, ratio: 1 },
-    onConverged: () => { done = true; },
-    // one call per node per iteration: counts the iterations
-    outputReducer: (_k, a) => { reduced += 1; return a; },
-  });
-  layout.start();
-
-  const t0 = performance.now();
-  let raf = 0;
-  const stop = () => {
-    cancelAnimationFrame(raf);
-    layout.kill();
-  };
-  const tick = () => {
-    onFrame(positions());
-    if (done || reduced / g.order >= NOVERLAP_ITERATIONS || performance.now() - t0 > MAX_MS) {
       stop();
       onEnd();
       return;
