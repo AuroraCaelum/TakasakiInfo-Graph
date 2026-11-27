@@ -363,6 +363,8 @@ h1, h2, h3, h4, h5 { margin: 0; }
 .player-pop { width: 340px; }
 .yt-frame { aspect-ratio: 16 / 9; margin: 8px 8px 0; border-radius: 6px; overflow: hidden; background: #000; }
 .yt-frame.empty { display: none; }
+/* a song's own video at the top of its overview */
+.yt-frame.song-video { margin: 4px 0 14px; }
 .yt-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
 .player-progress { height: 3px; margin: 6px 8px 0; border-radius: 2px; background: var(--grid); overflow: hidden; }
 .player-progress i { display: block; height: 100%; background: var(--accent); transition: width 0.5s linear; }

@@ -322,6 +322,7 @@ const ko = {
   } as Record<DayTemplate, readonly [string, string]>,
   // random player
   player: "랜덤 재생",
+  listen: "듣기",
   playerPool: (n: number) => `필터에 맞는 곡 ${n.toLocaleString()}곡`,
   playerHint: "YouTube Music 링크가 있는 곡을 무작위로 이어서 재생합니다. 프로젝트·분위기·BPM·기간 필터를 따릅니다.",
   playerEmpty: "필터에 맞는 곡 중 재생할 수 있는 곡이 없어요.",
@@ -628,6 +629,7 @@ const en: Dict = {
     leave: ["{w}, {s} wrapped up in {c}.", "{w}, {s} is set to wrap up in {c}."],
   },
   player: "Shuffle play",
+  listen: "Listen",
   playerPool: (n) => `${n.toLocaleString()} songs match the filters`,
   playerHint: "Plays songs with a YouTube Music link one after another, in random order. Follows the project, mood, BPM and date filters.",
   playerEmpty: "No playable songs match the filters.",
@@ -932,6 +934,7 @@ const ja: Dict = {
     leave: ["{w}、{s}が{c}での活動を終えました。", "{w}、{s}が{c}での活動を終える予定です。"],
   },
   player: "シャッフル再生",
+  listen: "試聴",
   playerPool: (n) => `フィルターに合う曲 ${n.toLocaleString()}曲`,
   playerHint: "YouTube Musicのリンクがある曲をランダムに続けて再生します。プロジェクト・雰囲気・BPM・期間のフィルターに従います。",
   playerEmpty: "フィルターに合う曲の中に再生できる曲がありません。",

@@ -16,7 +16,7 @@ import { useModel, useT } from "../context";
 import { Icon } from "../icons";
 import { nameOf } from "../lib/names";
 import { nodePasses } from "../lib/visibility";
-import { loadYouTube, YT_STATE, type YTPlayer } from "../lib/youtube";
+import { loadYouTube, pauseIfReady, registerPlayer, YT_STATE, type YTPlayer } from "../lib/youtube";
 import { useApp, useFilters } from "../store";
 import { usePopover, useSpotlight } from "./Popover";
 
@@ -71,6 +71,12 @@ export function PlayerButton({ host }: { host?: HTMLElement | null } = {}) {
   const now = useRef<string | null>(null);
   const poolRef = useRef(pool);
   poolRef.current = pool;
+  /** another player (a song's own video) starting pauses this one, and this one starting pauses it */
+  const focus = useRef<ReturnType<typeof registerPlayer> | null>(null);
+  useEffect(() => {
+    focus.current = registerPlayer(() => pauseIfReady(player.current));
+    return () => focus.current?.dispose();
+  }, []);
 
   const playable = (k: string) => poolRef.current.has(k) && !failed.current.has(k) && k !== now.current;
 
@@ -116,7 +122,7 @@ export function PlayerButton({ host }: { host?: HTMLElement | null } = {}) {
           },
           onStateChange: (e) => {
             if (e.data === YT_STATE.ENDED) next();
-            else if (e.data === YT_STATE.PLAYING) { errors.current = 0; setStatus("playing"); }
+            else if (e.data === YT_STATE.PLAYING) { errors.current = 0; setStatus("playing"); focus.current?.claim(); }
             else if (e.data === YT_STATE.PAUSED) setStatus("paused");
           },
           onError: () => {

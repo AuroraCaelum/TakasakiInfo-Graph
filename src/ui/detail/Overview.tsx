@@ -4,8 +4,9 @@ import { useModel, useT } from "../../context";
 import { formatDuration, keyText } from "../../lib/audio";
 import { formatBirthday, useBirthdaysToday } from "../../lib/birthday";
 import { fandomUrl } from "../../lib/links";
-import { namePartText, nameOrder } from "../../lib/names";
+import { nameOf, namePartText, nameOrder } from "../../lib/names";
 import { useApp } from "../../store";
+import { SongVideo } from "./SongVideo";
 import { Aliases, Badge, BirthdayBadge, EvidenceList, ExtLink, KV, MoodBadges, NodeLink, Section, shortUrl } from "../common";
 
 const LANG_LABEL: Record<keyof Names, string> = { ja: "ja", kana: "kana", rom: "rom", ko: "ko" };
@@ -43,6 +44,7 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
   const model = useModel();
   const set = useApp((s) => s.set);
   const uiLang = useApp((s) => s.uiLang);
+  const nameLang = useApp((s) => s.nameLang);
   const birthdays = useBirthdaysToday();
   const community = model.communities[node.m.cm];
   const links = linksOf(detail);
@@ -50,6 +52,8 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
 
   return (
     <>
+      {/* a work's video, never started by itself: moving from song to song cues the next one in the same player */}
+      {node.t === "work" && node.yt && <SongVideo videoId={node.yt} title={nameOf(node.n, nameLang, node.k)} />}
       <Section title={t.names}>
         <NamesTable names={node.n} />
         {parts && (parts.familyName || parts.givenName) && (

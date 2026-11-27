@@ -2,6 +2,7 @@
 
 export interface YTPlayer {
   loadVideoById(id: string): void;
+  cueVideoById(id: string): void;
   playVideo(): void;
   pauseVideo(): void;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
@@ -56,5 +57,27 @@ export function loadYouTube(): Promise<YTNamespace> {
   return api;
 }
 
+/** Pauses a player, if it has got far enough to have its methods (they arrive with `onReady`). */
+export function pauseIfReady(p: YTPlayer | null | undefined): void {
+  if (p && typeof p.pauseVideo === "function") p.pauseVideo();
+}
+
 /** Player states (YT.PlayerState), usable before the API has loaded. */
 export const YT_STATE = { ENDED: 0, PLAYING: 1, PAUSED: 2 } as const;
+
+// --- one player at a time ---------------------------------------------------------------------
+
+const players = new Map<symbol, () => void>();
+
+/**
+ * Registers a player that should give way to the others: when one of them starts playing it
+ * calls `claim()`, and every other registered player is paused (`pause`). `dispose()` on unmount.
+ */
+export function registerPlayer(pause: () => void): { claim: () => void; dispose: () => void } {
+  const id = Symbol("player");
+  players.set(id, pause);
+  return {
+    claim: () => { for (const [k, p] of players) if (k !== id) p(); },
+    dispose: () => { players.delete(id); },
+  };
+}
