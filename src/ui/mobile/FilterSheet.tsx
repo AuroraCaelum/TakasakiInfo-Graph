@@ -3,7 +3,7 @@ import { useModel, usePalette, useT } from "../../context";
 import { Icon } from "../../icons";
 import type { Visible } from "../../lib/visibility";
 import { useApp } from "../../store";
-import { useProjectName } from "../common";
+import { InfoTip, useProjectName } from "../common";
 import { BpmRange, COLOR_MODES, useFilterToggles } from "../FilterPanel";
 import { Segmented, SwitchRow, TypeDot } from "./parts";
 
@@ -53,13 +53,13 @@ export function FilterSheet({ visible, onClose }: { visible: Visible; onClose: (
 
           <h3 className="m-label">
             {t.audioFilter}
+            <InfoTip text={t.audioFilterHint(audioCount)} />
             {audioOn && (
               <span className="m-label-actions">
                 <button type="button" className="m-text-btn" onClick={clearAudio}>{t.clear}</button>
               </span>
             )}
           </h3>
-          <p className="m-hint">{t.audioFilterHint(audioCount)}</p>
           <div className="m-chips">
             {MOODS.map((m) => (
               <button

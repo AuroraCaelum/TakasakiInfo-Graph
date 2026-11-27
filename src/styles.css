@@ -265,6 +265,23 @@ h1, h2, h3, h4, h5 { margin: 0; }
   font-size: 12px; font-weight: 600; color: var(--ink-2);
 }
 .legend-actions { margin-left: auto; display: flex; gap: 2px; }
+.filters .fs-title, .m-label { position: relative; }
+
+/* ⓘ beside a heading (InfoTip): the heading is the note's containing block */
+.info-tip { display: inline-flex; margin-left: 2px; }
+.info-tip-btn {
+  display: inline-flex; align-items: center; justify-content: center; padding: 3px; border: 0; border-radius: 50%;
+  background: none; color: var(--muted); cursor: help;
+}
+.info-tip-btn:hover, .info-tip.open .info-tip-btn { color: var(--ink-2); }
+.info-tip-pop {
+  position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 10; display: none; padding: 8px 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+  font-size: 12px; font-weight: 400; line-height: 1.5; color: var(--ink-2);
+}
+.info-tip:hover .info-tip-pop, .info-tip:focus-within .info-tip-pop, .info-tip.open .info-tip-pop { display: block; }
+.m-label .info-tip-btn { padding: 8px; margin: -8px -4px; }
+.m-label .info-tip-pop { font-size: 13px; }
 .rule-list { margin: 6px 0 0; padding-left: 18px; font-size: 11px; color: var(--muted); }
 .rule-list strong { color: var(--ink-2); font-weight: 600; }
 

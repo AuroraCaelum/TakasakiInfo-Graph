@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import type { Period, PersonDetail } from "../../shared/graph";
 import type { Evidence, EvidenceMap } from "../../shared/v1";
@@ -191,4 +191,33 @@ export function useProjectName(): (id: string) => string {
   const model = useModel();
   const lang = useApp((s) => s.nameLang);
   return (id) => nameOf(model.nodes.get(`project:${id}`)?.n, lang, id);
+}
+
+/**
+ * An ⓘ beside a heading for a note too long to print under it. The note shows on hover and
+ * focus, and a tap keeps it open (phones) until the next tap elsewhere; it drops below the
+ * heading, as wide as it.
+ */
+export function InfoTip({ text }: { text: string }) {
+  const t = useT();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <span ref={ref} className={`info-tip${open ? " open" : ""}`}>
+      <button
+        type="button" className="info-tip-btn" aria-label={t.moreInfo} aria-describedby={id} aria-expanded={open}
+        onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+      >
+        <Icon name="info" size={14} />
+      </button>
+      <span role="tooltip" id={id} className="info-tip-pop">{text}</span>
+    </span>
+  );
 }

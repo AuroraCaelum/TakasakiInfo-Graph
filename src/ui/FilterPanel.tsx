@@ -6,7 +6,7 @@ import { Icon, TypeIcon } from "../icons";
 import { audioFilterOn, BPM_LIMIT, parseBpm } from "../lib/audio";
 import { useApp } from "../store";
 import type { ColorBy } from "../view";
-import { useProjectName } from "./common";
+import { InfoTip, useProjectName } from "./common";
 
 export const COLOR_MODES: ColorBy[] = ["type", "project", "community"];
 
@@ -26,11 +26,11 @@ export function useFilterToggles() {
     /** works that are drama tracks and BGM cues, which have their own toggles */
     dramaCount: model.list.filter((n) => n.t === "work" && n.s === "drama").length,
     bgmCount: model.list.filter((n) => n.t === "work" && n.s === "bgm").length,
+    audioCount: model.list.filter((n) => n.t === "work" && (n.au?.key || n.au?.bpm)).length,
     toggleMood: (m: string) => s.set({ moods: s.moods.includes(m) ? s.moods.filter((x) => x !== m) : [...s.moods, m] }),
     clearAudio: () => s.set({ moods: [], bpm: [null, null] }),
     audioOn: audioFilterOn(s),
     /** works whose representative recording has a key or tempo, and those with each mood label */
-    audioCount: model.list.filter((n) => n.t === "work" && (n.au?.key || n.au?.bpm)).length,
     moodCount: (m: string) => model.list.filter((n) => n.t === "work" && n.au?.mood?.includes(m)).length,
   };
 }
@@ -137,13 +137,13 @@ export function FilterPanel() {
         <section className="fs">
           <h3 className="fs-title">
             {t.audioFilter}
+            <InfoTip text={t.audioFilterHint(audioCount)} />
             {audioOn && (
               <span className="legend-actions">
                 <button type="button" className="text-btn" onClick={clearAudio}>{t.clear}</button>
               </span>
             )}
           </h3>
-          <p className="hint">{t.audioFilterHint(audioCount)}</p>
           {MOODS.map((m) => (
             <label key={m} className="check">
               <input type="checkbox" checked={s.moods.includes(m)} disabled={!s.types.work} onChange={() => toggleMood(m)} />
