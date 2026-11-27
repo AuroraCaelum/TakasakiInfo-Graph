@@ -263,6 +263,7 @@ const ko = {
   dataVersion: "데이터 버전",
   builtAt: "빌드",
   sourceRepo: "원본 데이터",
+  apiDocs: "API 문서 (Swagger UI)",
   selectHint: "노드를 클릭하면 정보와 연관도가 나타납니다.",
   hidden: "현재 필터에서 숨겨진 노드입니다.",
   // phone layout
@@ -594,6 +595,7 @@ const en: Dict = {
   dataVersion: "Data version",
   builtAt: "Built",
   sourceRepo: "Source data",
+  apiDocs: "API reference (Swagger UI)",
   selectHint: "Click a node to see its data and relatedness.",
   hidden: "Hidden by the current filters.",
   searchShort: "Search",
@@ -917,6 +919,7 @@ const ja: Dict = {
   dataVersion: "データのバージョン",
   builtAt: "ビルド",
   sourceRepo: "元データ",
+  apiDocs: "API リファレンス (Swagger UI)",
   selectHint: "ノードをクリックすると情報と関連度が表示されます。",
   hidden: "現在のフィルターで非表示のノードです。",
   searchShort: "検索",
