@@ -124,6 +124,15 @@ describe("search", () => {
   it("tolerates a typo in latin queries", () => {
     expect(search(index, "sakkyuku")[0]?.k).toBe("person:composer");
   });
+  it("finds names made only of punctuation", () => {
+    const marks = buildSearchIndex([
+      { ...model.list[0], k: "work:x/q", n: { ja: "？？？", rom: "???" } },
+      { ...model.list[0], k: "work:x/e", n: { ja: "！！！！" } },
+    ]);
+    expect(search(marks, "???").map((n) => n.k)).toEqual(["work:x/q"]);
+    expect(search(marks, "？？").map((n) => n.k)).toEqual(["work:x/q"]);
+    expect(search(marks, "!!!!")[0]?.k).toBe("work:x/e");
+  });
 });
 
 describe("url", () => {

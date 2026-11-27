@@ -4,30 +4,41 @@
  * ~2,600 nodes is small enough to scan on every keystroke, which gives exact substring matches
  * in Japanese and Korean (no tokenizer needed) and ignores spacing, width and kana script:
  * `ゆうき`, `ユウキ` and `ﾕｳｷ` all match. Latin queries also tolerate a typo or two.
+ *
+ * Punctuation is ignored too, except when the query is nothing but punctuation: then it is matched
+ * against names with their punctuation kept, so titles like `？？？` can still be found by `???`.
  */
 
 import type { GNode } from "../../shared/graph";
 
 const PUNCT = /[\s\u30fb\uff65\-\u2010-\u2015~\uff5e\u301c!?.,\u3001\u3002'\u2018\u2019"\u201c\u201d()[\]{}\u3010\u3011\u300c\u300d\u300e\u300f:/\u2605\u2606\u2661\u2665\u266a\u00d7*&+#@]/g;
 
-export function normalize(s: string): string {
+/** Width, case and kana script folded, spacing removed, punctuation kept. */
+function fold(s: string): string {
   return s
     .normalize("NFKC")
     .toLowerCase()
     .replace(/[\u30a1-\u30f6]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)) // katakana → hiragana
-    .replace(PUNCT, "");
+    .replace(/\s/g, "");
+}
+
+export function normalize(s: string): string {
+  return fold(s).replace(PUNCT, "");
 }
 
 export interface SearchIndex {
-  entries: { node: GNode; texts: string[] }[];
+  /** `texts`: names with punctuation removed; `marks`: names with it kept, for punctuation-only queries. */
+  entries: { node: GNode; texts: string[]; marks: string[] }[];
 }
 
 export function buildSearchIndex(nodes: GNode[]): SearchIndex {
   return {
     entries: nodes.map((node) => {
       const raw = [node.n.ja, node.n.kana, node.n.rom, node.n.ko, ...(node.al ?? []), node.k.slice(node.k.indexOf(":") + 1)];
-      const texts = [...new Set(raw.filter((x): x is string => !!x).map(normalize).filter(Boolean))];
-      return { node, texts };
+      const names = raw.filter((x): x is string => !!x);
+      const texts = [...new Set(names.map(normalize).filter(Boolean))];
+      const marks = [...new Set(names.map(fold).filter((t) => t !== normalize(t)))]; // only names with punctuation
+      return { node, texts, marks };
     }),
   };
 }
@@ -48,12 +59,14 @@ export function substringDistance(q: string, s: string): number {
 }
 
 export function search(index: SearchIndex, query: string, limit = 30): GNode[] {
-  const q = normalize(query);
+  let q = normalize(query);
+  const marksOnly = !q;
+  if (marksOnly) q = fold(query);
   if (!q) return [];
   const scored: { node: GNode; score: number }[] = [];
-  for (const { node, texts } of index.entries) {
+  for (const { node, texts, marks } of index.entries) {
     let best = 0;
-    for (const t of texts) {
+    for (const t of marksOnly ? marks : texts) {
       const i = t.indexOf(q);
       if (i < 0) continue;
       const cover = q.length / t.length;
