@@ -12,6 +12,10 @@ export interface AppState extends ViewState {
   filtersOpen: boolean;
   /** legend entry under the pointer: highlights that class */
   legendHover: string | null;
+  /** the top bar's drop-down open: this day in Love Live!, or the random player (one at a time) */
+  popover: "today" | "player" | null;
+  /** nodes the open drop-down points at: highlighted while nothing is selected or hovered */
+  spotlight: string[] | null;
   set: (p: Partial<AppState>) => void;
   select: (key: string | null) => void;
   resetFilters: () => void;
@@ -75,6 +79,8 @@ export const useApp = create<AppState>((set) => ({
   fa2: storedOptions("tg.fa2", FA2_DEFAULTS),
   filtersOpen: false,
   legendHover: null,
+  popover: null,
+  spotlight: null,
   set: (p) => set(p),
   select: (key) => set((s) => (key === s.selected ? {} : {
     selected: key,

@@ -5,14 +5,17 @@ import { NAME_LANGS, UI_LANGS, type UiLang } from "../i18n";
 import { Icon } from "../icons";
 import { chooseNameLang, chooseTheme, chooseUiLang, useApp } from "../store";
 import type { ThemeChoice } from "../view";
+import type { Visible } from "../lib/visibility";
+import { PlayerButton } from "./Player";
 import { SearchBox } from "./SearchBox";
+import { TodayButton } from "./TodayPanel";
 
 export const UI_LANG_LABEL: Record<UiLang, string> = { ko: "한국어", en: "English", ja: "日本語" };
 export const NAME_LANG_MARK = { ja: "あ", rom: "Aa", ko: "가" } as const;
 const NEXT_THEME: Record<ThemeChoice, ThemeChoice> = { system: "light", light: "dark", dark: "system" };
 export const THEME_ICON = { system: "monitor", light: "sun", dark: "moon" } as const;
 
-export function TopBar({ onAbout }: { onAbout: () => void }) {
+export function TopBar({ visible, onAbout }: { visible: Visible; onAbout: () => void }) {
   const t = useT();
   const s = useApp();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -43,6 +46,9 @@ export function TopBar({ onAbout }: { onAbout: () => void }) {
       </div>
       <SearchBox ref={searchRef} className="main-search" onPick={(k) => s.select(k)} />
       <div className="topbar-controls">
+        <TodayButton visible={visible} />
+        <PlayerButton />
+        <span className="topbar-sep" aria-hidden="true" />
         <div className="segmented" role="radiogroup" aria-label={t.nameLang} title={t.nameLang}>
           {NAME_LANGS.map((l) => (
             <button

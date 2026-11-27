@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { CharacterDetail, CityDetail, ConcertDetail, GEdge, PersonDetail, ReleaseDetail, VenueDetail, WorkDetail } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
-import { buildGraph } from "../scripts/lib/build-graph";
+import { buildGraph, youtubeId } from "../scripts/lib/build-graph";
+import { buildDays } from "../scripts/lib/days";
 import { mergePeriods } from "../scripts/lib/dates";
 import { checkFormat } from "../scripts/lib/source";
 import { fixture } from "./fixtures";
@@ -239,7 +240,7 @@ describe("buildGraph: details", () => {
     expect(w1.appearances.map((a) => a.release)).toEqual(["release:alpha/2022-r1", "release:beta/2024-r2"]);
     expect(w1.appearances[0].tracks.find((t) => t.rec === "off-vocal")?.editions).toEqual(["e1", "e2"]);
     expect(w1.performances.map((p) => p.date)).toEqual(["2021-05-01", "2021-05-02", "2025-03-01", "2025-03-01"]);
-    expect(w1.recordings[0].mainLink).toBe("https://music.youtube.com/watch?v=a");
+    expect(w1.recordings[0].mainLink).toBe("https://youtu.be/AbCdEfGhIj0");
   });
 
   it("records who sang as a character (D29)", () => {
@@ -332,6 +333,56 @@ describe("buildGraph: casts, live recordings and credited names", () => {
     const b = buildGraph(ds);
     expect(b.warnings).toEqual(['work alpha/w1: credited name "謎の人" is not an alias of person writer']);
     expect((b.details.get("work:alpha/w1") as WorkDetail).credits.lyricist[0].credited).toEqual({ ja: "謎の人" });
+  });
+});
+
+describe("days", () => {
+  const { events } = buildDays(built);
+  const on = (d: string) => events.filter((e) => e.d === d);
+
+  it("lists each show day once, with its venue, and none for an online show", () => {
+    expect(events.filter((e) => e.k === "concert").map((e) => [e.d, e.c?.[0]])).toEqual([
+      ["2021-05-01", "venue:hall-1"], ["2021-05-02", "venue:hall-1"], ["2021-06-01", "venue:hall-2"],
+      ["2025-03-01", "venue:hall-3"], ["2025-03-08", undefined],
+    ]);
+  });
+
+  it("dates a song by its first release, or by the show it was first sung at before any release", () => {
+    // w1 and w2 were sung on 2021-05-01, a year before their release: premiered together
+    expect(on("2021-05-01").find((e) => e.k === "premiere")).toEqual({
+      d: "2021-05-01", k: "premiere", s: ["work:alpha/w1", "work:alpha/w2"], c: ["concert:alpha/live"],
+    });
+    expect(events.some((e) => e.k === "work" && e.s.includes("work:alpha/w1"))).toBe(false);
+    expect(events.some((e) => e.s.includes("work:alpha/d1"))).toBe(false); // drama tracks are left out
+  });
+
+  it("puts firsts of one type together, from the node's own dated facts", () => {
+    expect(on("2021-05-01").filter((e) => e.k === "debut").map((e) => e.s)).toEqual([
+      ["character:alpha/c1"], ["person:composer", "person:writer"], ["project:alpha"],
+    ]);
+  });
+
+  it("keeps castings, later joins and departures, but not founding members", () => {
+    expect(events.filter((e) => e.k === "cast" || e.k === "join" || e.k === "leave")).toEqual([
+      { d: "2023-03-31", k: "leave", s: ["character:alpha/c2"], c: ["artist:unit-a"] },
+      { d: "2023-04-01", k: "cast", s: ["person:cv-two"], c: ["character:alpha/c1"] },
+      { d: "2023-04-01", k: "join", s: ["character:alpha/c3"], c: ["artist:unit-a"] },
+    ]);
+  });
+});
+
+describe("youtubeId", () => {
+  it("reads the video id of a YouTube or YouTube Music link, and nothing else", () => {
+    expect(youtubeId("https://youtu.be/u9gmI7wzO9E")).toBe("u9gmI7wzO9E");
+    expect(youtubeId("https://music.youtube.com/watch?v=u9gmI7wzO9E&list=x")).toBe("u9gmI7wzO9E");
+    expect(youtubeId("https://www.youtube.com/watch?feature=share&v=u9gmI7wzO9E")).toBe("u9gmI7wzO9E");
+    expect(youtubeId("https://music.youtube.com/browse/MPREb_cMR1uUqCSoA")).toBeNull();
+    expect(youtubeId("https://youtu.be/short")).toBeNull();
+  });
+
+  it("puts the representative recording's video on the work node", () => {
+    expect(built.nodes.get("work:alpha/w1")?.yt).toBe("AbCdEfGhIj0");
+    expect(built.nodes.get("work:alpha/w2")?.yt).toBeUndefined();
   });
 });
 

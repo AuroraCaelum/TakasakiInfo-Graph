@@ -9,6 +9,8 @@ import { FA2_DEFAULTS, fa2Settings } from "../shared/layout";
 import { fitInto, layoutGraph } from "../src/lib/layouts";
 import { audioPasses, audioSummary, formatDuration, keyText, parseBpm } from "../src/lib/audio";
 import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
+import { buildDays } from "../scripts/lib/days";
+import { eventsOn, finalConsonant, parseTemplate, particle, shiftDate } from "../src/lib/days";
 import { fandomTab, fandomUrl } from "../src/lib/links";
 import { namePartText, otherNames } from "../src/lib/names";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
@@ -308,5 +310,63 @@ describe("birthdays", () => {
     expect(formatBirthday("05-31", "ko")).toBe("5월 31일");
     expect(formatBirthday("05-31", "en")).toBe("May 31");
     expect(formatBirthday("02-29", "ja")).toBe("2月29日");
+  });
+});
+
+describe("this day in Love Live!", () => {
+  const { events } = buildDays(built);
+  const all = { has: () => true };
+  const sameName = () => false;
+
+  it("finds the month and day in every year, birthdays first, with the years since", () => {
+    const items = eventsOn("2026-05-01", "2026-05-01", events, model.nodes, all, sameName);
+    expect(items.map((i) => [i.section, i.template, i.s.join(), i.years])).toEqual([
+      ["concert", "concert", "concert:alpha/live", 5],
+      ["work", "premiere", "work:alpha/w1,work:alpha/w2", 5],
+      ["debut", "debutCharacter", "character:alpha/c1", 5],
+      ["debut", "debutPerson", "person:composer,person:writer", 5],
+      ["debut", "debutProject", "project:alpha", 5],
+    ]);
+    expect(eventsOn("2026-08-01", "2026-05-01", events, model.nodes, all, sameName).map((i) => [i.section, i.s[0]]))
+      .toEqual([["birthday", "character:alpha/c2"]]);
+  });
+
+  it("marks what is still to come, and reads an online show apart", () => {
+    const items = eventsOn("2025-03-08", "2025-03-01", events, model.nodes, all, sameName);
+    expect(items.map((i) => [i.template, i.future, i.years])).toEqual([["concertOnline", true, 0]]);
+  });
+
+  it("drops the subjects the filters hide, and an event left with none", () => {
+    const visible = { has: (k: string) => k !== "person:writer" && k !== "project:alpha" };
+    const items = eventsOn("2026-05-01", "2026-05-01", events, model.nodes, visible, sameName);
+    expect(items.filter((i) => i.section === "debut").map((i) => i.s)).toEqual([["character:alpha/c1"], ["person:composer"]]);
+  });
+
+  it("chooses Korean particles by the final sound, both forms when it can't tell", () => {
+    expect(finalConsonant("러브 라이브!")).toBe(false);
+    expect(finalConsonant("도쿄 돔")).toBe(true);
+    expect(finalConsonant("Dream")).toBe(true);
+    expect(finalConsonant("Sunshine!!")).toBe(false);
+    expect(finalConsonant("Song")).toBe(true);
+    expect(finalConsonant("17")).toBe(true);
+    expect(finalConsonant("μ's")).toBe(false);
+    expect(particle("무지개색☆뤼미에르", "이/가")).toBe("가");
+    expect(particle("코즈에", "이/가")).toBe("가");
+    expect(particle("호노카 외 3개", "이/가")).toBe("가");
+    expect(particle("夢", "이/가")).toBe("이(가)");
+    expect(particle("서울", "으로/로")).toBe("로");
+    expect(particle("도쿄 돔", "으로/로")).toBe("으로");
+  });
+
+  it("splits a template into text, slots and particles", () => {
+    expect(parseTemplate("{w}, {s}{이/가} 발매됐어요.")).toEqual([
+      { kind: "slot", slot: "w" }, { kind: "text", text: ", " }, { kind: "slot", slot: "s" },
+      { kind: "particle", pair: "이/가" }, { kind: "text", text: " 발매됐어요." },
+    ]);
+  });
+
+  it("moves a date by days across months and years", () => {
+    expect(shiftDate("2026-12-31", 1)).toBe("2027-01-01");
+    expect(shiftDate("2024-03-01", -1)).toBe("2024-02-29");
   });
 });

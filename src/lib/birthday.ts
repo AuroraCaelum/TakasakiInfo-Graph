@@ -30,7 +30,8 @@ function override(): string | null {
   if (!import.meta.env.DEV || typeof window === "undefined") return null;
   const v = new URLSearchParams(window.location.search).get("today");
   if (!v) return null;
-  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : /^\d{2}-\d{2}$/.test(v) ? `2024-${v}` : null;
+  // MM-DD is that day this year (02-29 in 2024, a leap year)
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : /^\d{2}-\d{2}$/.test(v) ? `${v === "02-29" ? 2024 : new Date().getFullYear()}-${v}` : null;
 }
 
 let today = override() ?? localDate(new Date());
@@ -56,9 +57,14 @@ function subscribe(l: () => void) {
   };
 }
 
+/** Today (the viewer's date) as `YYYY-MM-DD`; updates at midnight. */
+export function useToday(): string {
+  return useSyncExternalStore(subscribe, () => today);
+}
+
 /** The `MM-DD` birthdays that fall today (the viewer's date); updates at midnight. */
 export function useBirthdaysToday(): Set<string> {
-  const date = useSyncExternalStore(subscribe, () => today);
+  const date = useToday();
   return useMemo(() => birthdaysOn(date), [date]);
 }
 

@@ -119,7 +119,7 @@ export function fixture(): V.V1Dataset {
   const recordings: V.RecordingRow[] = works.flatMap((w) => w.recordings.map((r) => {
     const id = `${w.id}#${r.id}`;
     return {
-      id, work: w.id, main_link: w.id === "alpha/w1" && r.id === "original" ? "https://music.youtube.com/watch?v=a" : null,
+      id, work: w.id, main_link: w.id === "alpha/w1" && r.id === "original" ? "https://youtu.be/AbCdEfGhIj0" : null,
       duration: null, audio: null, ...audio[id], representative: representative.has(id),
     };
   }));

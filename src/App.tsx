@@ -138,7 +138,7 @@ function DesktopShell({ visible, path }: { visible: Visible; path: PathResult | 
 
   return (
     <div className={`app${selected ? " has-detail" : ""}${filtersOpen ? " has-filters" : ""}`}>
-      <TopBar onAbout={() => setAbout(true)} />
+      <TopBar visible={visible} onAbout={() => setAbout(true)} />
       <div className="main">
         <FilterPanel />
         <div className="stage">

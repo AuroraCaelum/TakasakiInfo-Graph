@@ -120,6 +120,8 @@ export interface GNode {
   bd?: string;
   /** works: length, key and tempo of the representative recording (D61) */
   au?: AudioFacts;
+  /** works: YouTube video id of the representative recording's main link (else a vocal recording's), for the player */
+  yt?: string;
   x: number;
   y: number;
   m: Metrics;
@@ -395,3 +397,35 @@ export type Detail =
   | ConcertDetail | VenueDetail | CityDetail;
 
 export type DetailFile = Record<string, Detail>;
+
+// --- days ----------------------------------------------------------------------------------
+
+/**
+ * `days.json`: what happened on each date, for "this day in Love Live!". Birthdays are not in it
+ * (the nodes carry them as `bd`).
+ *
+ * - `concert`: a show day. `s` the concert, `c` the venue (absent online).
+ * - `release`: releases out that day (`s`).
+ * - `work`: songs first released that day (`s`), `c` the release they came out on.
+ * - `premiere`: songs first sung live that day, before any release (`s`), `c` the concert.
+ * - `debut`: the first dated fact of a person, character, artist or project (`s`, one type per event).
+ * - `cast`: a casting starts. `s` the person, `c` the character.
+ * - `join` / `leave`: a character's membership starts (founding members left out) or ends. `s` the character, `c` the artist.
+ */
+export const DAY_KINDS = ["concert", "release", "work", "premiere", "debut", "cast", "join", "leave"] as const;
+export type DayKind = (typeof DAY_KINDS)[number];
+
+export interface DayEvent {
+  /** `YYYY-MM-DD` */
+  d: string;
+  k: DayKind;
+  /** subject node keys */
+  s: string[];
+  /** context node keys (venue, release, concert, character, artist) */
+  c?: string[];
+}
+
+export interface DaysFile {
+  format: typeof GRAPH_FORMAT;
+  events: DayEvent[];
+}

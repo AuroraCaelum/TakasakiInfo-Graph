@@ -5,7 +5,7 @@
  *   npm run data -- --src ../TakasakiInfo/dist/v1 # from a local `takasaki dist`
  *   npm run data -- --out public/data --iterations 3000
  *
- * Writes `graph.json`, `detail/<type>.json` and `meta.json` into the output directory.
+ * Writes `graph.json`, `days.json`, `detail/<type>.json` and `meta.json` into the output directory.
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
@@ -15,6 +15,7 @@ import { parseArgs } from "node:util";
 import { GRAPH_FORMAT, NODE_TYPES, type DetailFile, type GNode, type GraphFile } from "../shared/graph";
 import { analyze } from "./lib/analyze";
 import { buildGraph } from "./lib/build-graph";
+import { buildDays } from "./lib/days";
 import { DEFAULT_SOURCE, loadV1 } from "./lib/source";
 
 async function main() {
@@ -68,6 +69,7 @@ async function main() {
   const write = (name: string, data: unknown) => writeFile(path.join(out, name), JSON.stringify(data), "utf8");
   await write("graph.json", graph);
   await write("meta.json", graph.meta);
+  await write("days.json", buildDays(built));
   for (const t of NODE_TYPES) {
     const file: DetailFile = {};
     for (const [k, d] of [...built.details].sort(([a], [b]) => a.localeCompare(b))) if (d.t === t) file[k] = d;

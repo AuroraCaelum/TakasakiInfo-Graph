@@ -285,6 +285,97 @@ h1, h2, h3, h4, h5 { margin: 0; }
 .rule-list { margin: 6px 0 0; padding-left: 18px; font-size: 11px; color: var(--muted); }
 .rule-list strong { color: var(--ink-2); font-weight: 600; }
 
+/* --- top-bar drop-downs: this day in Love Live!, the random player ------------------------- */
+
+.topbar-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
+.pop-anchor { position: relative; }
+.pop-btn { height: 34px; gap: 6px; color: var(--ink-2); }
+.pop-btn:hover { color: var(--ink); }
+.pop-btn.on { color: var(--accent-ink); }
+.pop-btn-label { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+
+/* hangs under its button, right edges aligned, over the graph and the detail panel */
+.pop {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 45; width: 380px; max-width: calc(100vw - 24px);
+  display: flex; flex-direction: column; max-height: min(72vh, 640px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  animation: pop-in 0.14s ease-out;
+}
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } }
+.pop-hidden { visibility: hidden; pointer-events: none; animation: none; }
+.pop-head { display: flex; align-items: center; gap: 4px; padding: 8px 8px 6px 10px; border-bottom: 1px solid var(--divider); }
+.pop-head h2 { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pop-sub { font-size: 11.5px; color: var(--muted); margin-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: help; }
+.pop-close { margin-left: auto; }
+.pop-body { overflow-y: auto; padding: 4px 6px 10px; }
+.pop-empty { margin: 0; padding: 28px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+.spinner.small { display: inline-block; width: 18px; height: 18px; border-width: 2px; }
+
+.today-pop h2 { flex: 0 1 auto; text-align: center; padding: 0 2px; }
+.day-sec h3 {
+  display: flex; align-items: center; gap: 6px; margin: 10px 6px 2px; font-size: 11.5px; font-weight: 600; color: var(--muted);
+}
+.day-sec h3 .count { margin-left: 0; }
+.day-sec ul { list-style: none; margin: 0; padding: 0; }
+.day-sec li {
+  display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px; border-radius: 6px; font-size: 13px; line-height: 1.55;
+}
+.day-sec li:hover { background: var(--surface-2); }
+.day-sec li p { margin: 0; flex: 1; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.day-sec li.upcoming p { color: var(--muted); }
+.day-name, .day-more {
+  display: inline; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--ink); cursor: pointer;
+  text-align: left; border-radius: 3px;
+}
+.day-name svg { display: inline-block; vertical-align: -1px; margin-right: 2px; }
+.day-name:hover, .day-more:hover { color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
+.day-more { font-weight: 500; color: var(--accent-ink); }
+.day-chip {
+  flex: none; margin-top: 2px; padding: 0 6px; height: 18px; line-height: 18px; border-radius: 9px;
+  font-size: 10.5px; font-weight: 600; background: var(--surface-2); color: var(--muted); white-space: nowrap;
+}
+.upcoming .day-chip { background: var(--accent-wash); color: var(--accent-ink); }
+
+.player-pop { width: 340px; }
+.yt-frame { aspect-ratio: 16 / 9; margin: 8px 8px 0; border-radius: 6px; overflow: hidden; background: #000; }
+.yt-frame.empty { display: none; }
+.yt-frame iframe { display: block; width: 100%; height: 100%; border: 0; }
+.player-progress { height: 3px; margin: 6px 8px 0; border-radius: 2px; background: var(--grid); overflow: hidden; }
+.player-progress i { display: block; height: 100%; background: var(--accent); transition: width 0.5s linear; }
+.player-now { display: flex; align-items: center; gap: 8px; padding: 6px 8px 8px 10px; }
+.player-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.player-title {
+  padding: 0; border: 0; background: none; font: inherit; font-weight: 700; font-size: 14px; color: var(--ink); text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.player-title:hover { color: var(--accent-ink); }
+.player-sub { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.transport { display: flex; align-items: center; gap: 2px; flex: none; }
+.transport .icon-btn:disabled { opacity: 0.4; pointer-events: none; }
+.play-btn { width: 36px; height: 36px; border-radius: 50%; background: var(--ink); color: var(--surface); }
+.play-btn:hover { background: var(--ink); color: var(--surface); opacity: 0.85; }
+.play-btn svg { fill: currentColor; }
+.player-next {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 10px 8px; border-top: 1px solid var(--divider); font-size: 12px; min-width: 0;
+}
+.player-next span { color: var(--muted); flex: none; }
+.player-next button {
+  padding: 0; border: 0; background: none; font: inherit; color: var(--ink-2); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+.player-next button:hover { color: var(--accent-ink); }
+
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; width: 14px; height: 13px; flex: none; }
+.eq i { flex: 1; height: 35%; border-radius: 1px; background: currentColor; }
+.eq.on i { animation: eq 0.9s ease-in-out infinite alternate; }
+.eq.on i:nth-child(2) { animation-delay: -0.3s; }
+.eq.on i:nth-child(3) { animation-delay: -0.6s; }
+@keyframes eq { 0% { height: 25%; } 50% { height: 100%; } 100% { height: 50%; } }
+@media (prefers-reduced-motion: reduce) {
+  .eq.on i { animation: none; height: 70%; }
+  .pop { animation: none; }
+}
+
 /* --- graph --------------------------------------------------------------------------------- */
 
 .graph, .graph-canvas { position: absolute; inset: 0; }
@@ -564,6 +655,7 @@ details.more summary { font-size: 12px; color: var(--accent-ink); cursor: pointe
 
 @media (max-width: 1180px) {
   .tagline { display: none; }
+  .pop-btn-label { max-width: 110px; }
   .detail { width: 380px; }
 }
 
@@ -576,6 +668,7 @@ details.more summary { font-size: 12px; color: var(--accent-ink); cursor: pointe
 
 @media (max-width: 900px) {
   .hide-narrow { display: none; }
+  .player-btn .pop-btn-label { display: none; }
   .timebar .hint.inline { display: none; }
 }
 

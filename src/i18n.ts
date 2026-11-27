@@ -7,6 +7,15 @@ export type NameLang = "ja" | "rom" | "ko";
 export const UI_LANGS: UiLang[] = ["ko", "en", "ja"];
 export const NAME_LANGS: NameLang[] = ["ja", "rom", "ko"];
 
+/** Sections of "this day in Love Live!", in the order they are shown. */
+export const DAY_SECTIONS = ["birthday", "concert", "release", "work", "debut", "lineup"] as const;
+export type DaySection = (typeof DAY_SECTIONS)[number];
+export type DayTemplate =
+  | "birthday" | "concert" | "concertOnline" | "release" | "work" | "workSelf" | "premiere"
+  | "debutPerson" | "debutCharacter" | "debutArtist" | "debutProject" | "cast" | "join" | "leave";
+
+const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 /** UI language → default language of node names (en reads the romanisation). */
 export const DEFAULT_NAME_LANG: Record<UiLang, NameLang> = { ko: "ko", en: "rom", ja: "ja" };
 
@@ -270,6 +279,51 @@ const ko = {
   linkCopied: "링크를 복사했습니다",
   showNodes: (n: number) => `노드 ${n.toLocaleString()}개 보기`,
   resize: "그래프 크기 조절",
+  // this day in Love Live!
+  dayButton: (m: number, d: number) => `${m}월 ${d}일`,
+  dayTitle: (m: number, d: number) => `${m}월 ${d}일의 러브 라이브!`,
+  dayOpen: "이날의 러브 라이브! 돌아보기",
+  dayPrev: "전날",
+  dayNext: "다음 날",
+  dayToday: "오늘",
+  dayEmpty: "이날 기록된 일이 없어요.",
+  dayEmptyFiltered: "현재 필터에서 보이는 일이 없어요.",
+  dayHint: "목록의 노드를 그래프에 강조합니다. 줄에 마우스를 올리면 그 줄의 노드만 강조합니다.",
+  daySections: { birthday: "생일", concert: "공연", release: "발매물", work: "곡", debut: "첫 등장", lineup: "캐스팅·멤버" } as Record<DaySection, string>,
+  dayYears: (n: number) => `${n}주년`,
+  dayUpcoming: "예정",
+  /** "2016년 오늘" when looking at today, else "2016년 이날" */
+  dayWhen: (y: number, today: boolean) => `${y}년 ${today ? "오늘" : "이날"}`,
+  dayMore: (n: number) => `외 ${n}개`,
+  listSep: ", ",
+  listLast: ", ",
+  /** [past, upcoming]; birthdays: [today, another day]. {w} the year phrase, {s} the subjects, {c} the context, {이/가} a particle */
+  dayTpl: {
+    birthday: ["오늘은 {s}의 생일이에요.", "이날은 {s}의 생일이에요."],
+    concert: ["{w}, {c}에서 {s} 공연을 진행했어요.", "{w}, {c}에서 {s} 공연이 열릴 예정이에요."],
+    concertOnline: ["{w}, 온라인으로 {s} 공연을 진행했어요.", "{w}, 온라인으로 {s} 공연이 열릴 예정이에요."],
+    release: ["{w}, {s}{이/가} 발매됐어요.", "{w}, {s}{이/가} 발매될 예정이에요."],
+    work: ["{w}, {c}에 실린 {s}{이/가} 처음 발매됐어요.", "{w}, {c}에 실린 {s}{이/가} 처음 발매될 예정이에요."],
+    workSelf: ["{w}, {s}{이/가} 처음 발매됐어요.", "{w}, {s}{이/가} 처음 발매될 예정이에요."],
+    premiere: ["{w}, {c}에서 {s}{이/가} 처음 공개됐어요.", "{w}, {c}에서 {s}{이/가} 처음 공개될 예정이에요."],
+    debutPerson: ["{s}{이/가} {w}, 처음으로 프로젝트에 참여했어요.", "{s}{이/가} {w}, 처음으로 프로젝트에 참여할 예정이에요."],
+    debutCharacter: ["{w}, {s}{이/가} 처음 등장했어요.", "{w}, {s}{이/가} 처음 등장할 예정이에요."],
+    debutArtist: ["{w}, {s}{이/가} 첫 활동을 시작했어요.", "{w}, {s}{이/가} 첫 활동을 시작할 예정이에요."],
+    debutProject: ["{w}, {s} 프로젝트가 시작됐어요.", "{w}, {s} 프로젝트가 시작될 예정이에요."],
+    cast: ["{w}, {s}{이/가} {c} 역을 맡게 됐어요.", "{w}, {s}{이/가} {c} 역을 맡을 예정이에요."],
+    join: ["{w}, {s}{이/가} {c}에 합류했어요.", "{w}, {s}{이/가} {c}에 합류할 예정이에요."],
+    leave: ["{w}, {s}{이/가} {c} 활동을 마무리했어요.", "{w}, {s}{이/가} {c} 활동을 마무리할 예정이에요."],
+  } as Record<DayTemplate, readonly [string, string]>,
+  // random player
+  player: "랜덤 재생",
+  playerPool: (n: number) => `필터에 맞는 곡 ${n.toLocaleString()}곡`,
+  playerHint: "YouTube Music 링크가 있는 곡을 무작위로 이어서 재생합니다. 프로젝트·분위기·BPM·기간 필터를 따릅니다.",
+  playerEmpty: "필터에 맞는 곡 중 재생할 수 있는 곡이 없어요.",
+  playerLoading: "플레이어를 불러오는 중…",
+  playerPrev: "이전 곡",
+  playerNext: "다음 곡",
+  playerUpNext: "다음",
+  playerShow: "그래프에서 보기",
 };
 
 export type Dict = typeof ko;
@@ -529,6 +583,47 @@ const en: Dict = {
   linkCopied: "Link copied",
   showNodes: (n) => `Show ${n.toLocaleString()} node${n === 1 ? "" : "s"}`,
   resize: "Resize the graph",
+  dayButton: (m, d) => `${MONTHS_EN[m - 1].slice(0, 3)} ${d}`,
+  dayTitle: (m, d) => `Love Live! on ${MONTHS_EN[m - 1]} ${d}`,
+  dayOpen: "This day in Love Live!",
+  dayPrev: "Previous day",
+  dayNext: "Next day",
+  dayToday: "Today",
+  dayEmpty: "Nothing on record for this day.",
+  dayEmptyFiltered: "Nothing for this day with the current filters.",
+  dayHint: "The nodes listed are highlighted on the graph. Point at a line to highlight only its nodes.",
+  daySections: { birthday: "Birthdays", concert: "Concerts", release: "Releases", work: "Songs", debut: "Firsts", lineup: "Casting and members" },
+  dayYears: (n) => (n === 1 ? "1 year" : `${n} years`),
+  dayUpcoming: "Upcoming",
+  dayWhen: (y) => `On this day in ${y}`,
+  dayMore: (n) => `${n} more`,
+  listSep: ", ",
+  listLast: " and ",
+  dayTpl: {
+    birthday: ["Today is {s}'s birthday.", "It's {s}'s birthday."],
+    concert: ["{w}, {s} was held at {c}.", "{w}, {s} is set to be held at {c}."],
+    concertOnline: ["{w}, {s} was held online.", "{w}, {s} is set to be held online."],
+    release: ["{w}, {s} came out.", "{w}, {s} is set to come out."],
+    work: ["{w}, {s} first came out on {c}.", "{w}, {s} is set to first come out on {c}."],
+    workSelf: ["{w}, {s} first came out.", "{w}, {s} is set to first come out."],
+    premiere: ["{w}, {s} premiered at {c}.", "{w}, {s} is set to premiere at {c}."],
+    debutPerson: ["{w}, {s} first joined the project.", "{w}, {s} is set to first join the project."],
+    debutCharacter: ["{w}, {s} first appeared.", "{w}, {s} is set to first appear."],
+    debutArtist: ["{w}, {s} started out.", "{w}, {s} is set to start out."],
+    debutProject: ["{w}, {s} began.", "{w}, {s} is set to begin."],
+    cast: ["{w}, {s} was cast as {c}.", "{w}, {s} is set to be cast as {c}."],
+    join: ["{w}, {s} joined {c}.", "{w}, {s} is set to join {c}."],
+    leave: ["{w}, {s} wrapped up in {c}.", "{w}, {s} is set to wrap up in {c}."],
+  },
+  player: "Shuffle play",
+  playerPool: (n) => `${n.toLocaleString()} songs match the filters`,
+  playerHint: "Plays songs with a YouTube Music link one after another, in random order. Follows the project, mood, BPM and date filters.",
+  playerEmpty: "No playable songs match the filters.",
+  playerLoading: "Loading the player…",
+  playerPrev: "Previous song",
+  playerNext: "Next song",
+  playerUpNext: "Next",
+  playerShow: "Show on the graph",
 };
 
 const ja: Dict = {
@@ -786,6 +881,47 @@ const ja: Dict = {
   linkCopied: "リンクをコピーしました",
   showNodes: (n) => `${n.toLocaleString()}件のノードを表示`,
   resize: "グラフの大きさを変更",
+  dayButton: (m, d) => `${m}月${d}日`,
+  dayTitle: (m, d) => `${m}月${d}日のラブライブ！`,
+  dayOpen: "この日のラブライブ！を振り返る",
+  dayPrev: "前の日",
+  dayNext: "次の日",
+  dayToday: "今日",
+  dayEmpty: "この日の記録はありません。",
+  dayEmptyFiltered: "現在のフィルターでは、この日の出来事はありません。",
+  dayHint: "一覧のノードをグラフで強調します。行にポインターを合わせると、その行のノードだけを強調します。",
+  daySections: { birthday: "誕生日", concert: "公演", release: "リリース", work: "楽曲", debut: "初登場", lineup: "キャスト・メンバー" },
+  dayYears: (n) => `${n}周年`,
+  dayUpcoming: "予定",
+  dayWhen: (y, today) => `${y}年${today ? "の今日" : "のこの日"}`,
+  dayMore: (n) => `ほか${n}件`,
+  listSep: "、",
+  listLast: "、",
+  dayTpl: {
+    birthday: ["今日は{s}の誕生日です。", "この日は{s}の誕生日です。"],
+    concert: ["{w}、{c}で{s}が開催されました。", "{w}、{c}で{s}が開催される予定です。"],
+    concertOnline: ["{w}、{s}がオンラインで開催されました。", "{w}、{s}がオンラインで開催される予定です。"],
+    release: ["{w}、{s}が発売されました。", "{w}、{s}が発売される予定です。"],
+    work: ["{w}、{c}に収録された{s}が初めてリリースされました。", "{w}、{c}に収録される{s}が初めてリリースされる予定です。"],
+    workSelf: ["{w}、{s}が初めてリリースされました。", "{w}、{s}が初めてリリースされる予定です。"],
+    premiere: ["{w}、{c}で{s}が初披露されました。", "{w}、{c}で{s}が初披露される予定です。"],
+    debutPerson: ["{w}、{s}が初めてプロジェクトに参加しました。", "{w}、{s}が初めてプロジェクトに参加する予定です。"],
+    debutCharacter: ["{w}、{s}が初登場しました。", "{w}、{s}が初登場する予定です。"],
+    debutArtist: ["{w}、{s}が活動を始めました。", "{w}、{s}が活動を始める予定です。"],
+    debutProject: ["{w}、{s}が始まりました。", "{w}、{s}が始まる予定です。"],
+    cast: ["{w}、{s}が{c}役に決まりました。", "{w}、{s}が{c}役を務める予定です。"],
+    join: ["{w}、{s}が{c}に加入しました。", "{w}、{s}が{c}に加入する予定です。"],
+    leave: ["{w}、{s}が{c}での活動を終えました。", "{w}、{s}が{c}での活動を終える予定です。"],
+  },
+  player: "シャッフル再生",
+  playerPool: (n) => `フィルターに合う曲 ${n.toLocaleString()}曲`,
+  playerHint: "YouTube Musicのリンクがある曲をランダムに続けて再生します。プロジェクト・雰囲気・BPM・期間のフィルターに従います。",
+  playerEmpty: "フィルターに合う曲の中に再生できる曲がありません。",
+  playerLoading: "プレーヤーを読み込み中…",
+  playerPrev: "前の曲",
+  playerNext: "次の曲",
+  playerUpNext: "次",
+  playerShow: "グラフで見る",
 };
 
 export const DICTS: Record<UiLang, Dict> = { ko, en, ja };

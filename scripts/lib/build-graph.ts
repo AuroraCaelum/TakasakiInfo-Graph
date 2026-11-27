@@ -49,6 +49,12 @@ export interface BuiltGraph {
 export const nodeKey = (t: NodeType, id: string) => `${t}:${id}`;
 
 const INSTRUMENTAL = new Set(["off_vocal", "instrumental"]);
+
+/** The video id of a YouTube or YouTube Music link (`youtu.be/<id>`, `…/watch?v=<id>`); null for anything else. */
+export function youtubeId(url: string): string | null {
+  const m = /^https:\/\/(?:youtu\.be\/|(?:www\.|music\.)?youtube\.com\/watch\?(?:[^#]*&)?v=)([\w-]{11})(?:[?&#]|$)/.exec(url);
+  return m ? m[1] : null;
+}
 /** `YYYY-MM-DD` or `MM-DD`, a real calendar day (02-29 included) */
 const BIRTHDAY = /^(?:\d{4}-)?(?:(?:0[1-9]|1[0-2])-(?:0[1-9]|1\d|2[0-8])|(?:0[13-9]|1[0-2])-(?:29|30)|(?:0[13578]|1[02])-31|02-29)$/;
 
@@ -362,6 +368,11 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
         ...(rec.evidence && Object.keys(rec.evidence).length ? { evidence: rec.evidence } : {}),
       });
     }
+
+    // the video the random player plays: the representative recording's, else a vocal one's, else any
+    const linked = recordings.filter((r) => r.mainLink && youtubeId(r.mainLink));
+    const playable = linked.find((r) => r.representative) ?? linked.find((r) => r.kind === "vocal") ?? linked[0];
+    if (playable) nodes.get(wk)!.yt = youtubeId(playable.mainLink!)!;
 
     for (const role of ["lyricist", "composer"] as const) {
       for (const ref of writers[role]) addEdge(role, ref, wk, { d: wd });

@@ -40,6 +40,8 @@ interface RenderState {
   edges: Set<string> | null;
   /** persons and characters whose birthday is today: they wear a party hat */
   birthdays: string[];
+  /** the highlight is a drop-down's spotlight: its nodes are labelled and drawn larger */
+  spot: boolean;
 }
 
 type Tip = { kind: "node"; key: string; x: number; y: number } | { kind: "edge"; key: string; x: number; y: number };
@@ -84,6 +86,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const selected = useApp((s) => s.selected);
   const focus = useApp((s) => s.focus);
   const legendHover = useApp((s) => s.legendHover);
+  const spotlight = useApp((s) => s.spotlight);
   /** ForceAtlas2's options: a change to them runs it again */
   const fa2 = useApp((s) => s.fa2);
   const birthdaysToday = useBirthdaysToday();
@@ -114,7 +117,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const rerunSeen = useRef(rerun);
 
   const state = useRef<RenderState>({
-    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [],
+    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [], spot: false,
   });
 
   // --- sigma instance ------------------------------------------------------------------------
@@ -199,7 +202,8 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
           res.color = colorOf(n, s.colorBy, s.palette);
           res.pictoColor = s.colorBy === "type" ? s.palette.picto[n.t] : "#ffffff";
           res.zIndex = s.nodes ? 2 : n.t === "project" ? 1 : 0;
-          if (n.t === "project" || (s.nodes && s.nodes.size <= 12)) res.forceLabel = true;
+          if (n.t === "project" || (s.nodes && s.nodes.size <= (s.spot ? 40 : 12))) res.forceLabel = true;
+          if (s.spot) res.size = data.size * 1.4 + 1.5;
         } else {
           res.color = s.palette.dim;
           res.pictoColor = s.palette.dim;
@@ -329,6 +333,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     s.hovered = hovered;
     s.nodes = null;
     s.edges = null;
+    s.spot = false;
     s.birthdays = model.list.filter((n) => n.bd && birthdaysToday.has(n.bd)).map((n) => n.k);
     const around = (k: string) => {
       const nodes = new Set([k]);
@@ -347,6 +352,18 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       ({ nodes: s.nodes, edges: s.edges } = around(s.selected));
     } else if (hovered && visible.nodes.has(hovered)) {
       ({ nodes: s.nodes, edges: s.edges } = around(hovered));
+    } else if (spotlight?.some((k) => visible.nodes.has(k))) {
+      // a drop-down's nodes (this day's, the song playing) and the links among them
+      const nodes = new Set(spotlight.filter((k) => visible.nodes.has(k)));
+      const edges = new Set<string>();
+      for (const k of nodes) {
+        model.graph.forEachEdge(k, (e, _a, a, b) => {
+          if (visible.edges.has(e) && nodes.has(a === k ? b : a)) edges.add(e);
+        });
+      }
+      s.nodes = nodes;
+      s.edges = edges;
+      s.spot = true;
     } else if (legendHover) {
       s.nodes = new Set([...visible.nodes].filter((k) => classOf(model.nodes.get(k)!, colorBy) === legendHover));
       s.edges = new Set();
@@ -355,7 +372,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     // label, so the label grid only has to place the highlighted ones without overlap)
     sigmaRef.current?.setSetting("labelRenderedSizeThreshold", s.nodes ? 0 : 8);
     sigmaRef.current?.refresh();
-  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, path, birthdaysToday]);
+  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, spotlight, path, birthdaysToday]);
 
   // --- camera: fly to a node selected outside the graph ----------------------------------------
   useEffect(() => {
