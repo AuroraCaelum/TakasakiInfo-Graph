@@ -10,7 +10,7 @@ import { fitInto, layoutGraph } from "../src/lib/layouts";
 import { audioPasses, audioSummary, formatDuration, keyText, parseBpm } from "../src/lib/audio";
 import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
 import { buildDays } from "../scripts/lib/days";
-import { eventsOn, finalConsonant, parseTemplate, particle, shiftDate } from "../src/lib/days";
+import { countsByDay, eventsOn, finalConsonant, parseTemplate, particle, shiftDate } from "../src/lib/days";
 import { fandomTab, fandomUrl } from "../src/lib/links";
 import { namePartText, otherNames } from "../src/lib/names";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
@@ -363,6 +363,13 @@ describe("this day in Love Live!", () => {
       { kind: "slot", slot: "w" }, { kind: "text", text: ", " }, { kind: "slot", slot: "s" },
       { kind: "particle", pair: "이/가" }, { kind: "text", text: " 발매됐어요." },
     ]);
+  });
+
+  it("counts each day's items for the calendar, with the filters as they are", () => {
+    const counts = countsByDay(events, model.nodes, all);
+    expect(counts.get("05-01")).toBe(eventsOn("2026-05-01", "2026-05-01", events, model.nodes, all, sameName).length);
+    expect(counts.get("08-01")).toBe(1); // a birthday
+    expect(countsByDay(events, model.nodes, { has: (k: string) => k !== "character:alpha/c2" }).get("08-01")).toBeUndefined();
   });
 
   it("moves a date by days across months and years", () => {

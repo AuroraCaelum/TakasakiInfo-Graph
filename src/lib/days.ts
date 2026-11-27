@@ -82,6 +82,19 @@ export function eventsOn(
   return out;
 }
 
+/**
+ * How many items each month and day (`MM-DD`) holds with the filters as they are: events with a
+ * subject left, and birthdays. A day's list also shows 02-29 in common years, which callers
+ * add in through `birthdaysOn`.
+ */
+export function countsByDay(events: DayEvent[], nodes: Map<string, GNode>, visible: { has(k: string): boolean }): Map<string, number> {
+  const out = new Map<string, number>();
+  const bump = (md: string) => out.set(md, (out.get(md) ?? 0) + 1);
+  for (const n of nodes.values()) if (n.bd && visible.has(n.k)) bump(n.bd);
+  for (const e of events) if (e.s.some((k) => visible.has(k))) bump(e.d.slice(5));
+  return out;
+}
+
 /** Every node an item names. */
 export const keysOf = (items: DayItem[]): string[] => [...new Set(items.flatMap((i) => [...i.s, ...i.c]))];
 

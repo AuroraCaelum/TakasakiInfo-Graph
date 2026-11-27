@@ -11,8 +11,8 @@ import type { DayEvent } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { DAY_SECTIONS, type Dict } from "../i18n";
 import { Icon, TypeIcon } from "../icons";
-import { useToday } from "../lib/birthday";
-import { eventsOn, keysOf, loadDays, parseTemplate, particle, shiftDate, type DayItem } from "../lib/days";
+import { birthdaysOn, useToday } from "../lib/birthday";
+import { countsByDay, eventsOn, keysOf, loadDays, parseTemplate, particle, shiftDate, type DayItem } from "../lib/days";
 import { nameOf } from "../lib/names";
 import type { Visible } from "../lib/visibility";
 import { useApp } from "../store";
@@ -49,6 +49,8 @@ function TodayPanel({ visible, today, onClose }: { visible: Visible; today: stri
   const [events, setEvents] = useState<DayEvent[] | null>(null);
   const [error, setError] = useState(false);
   const [hover, setHover] = useState<DayItem | null>(null);
+  /** the month calendar shows instead of the list */
+  const [picking, setPicking] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -72,19 +74,33 @@ function TodayPanel({ visible, today, onClose }: { visible: Visible; today: stri
   return (
     <div className="pop today-pop" role="dialog" aria-labelledby="today-title">
       <header className="pop-head">
-        <button type="button" className="icon-btn small" title={t.dayPrev} aria-label={t.dayPrev} onClick={() => setDate(shiftDate(date, -1))}>
+        <button type="button" className="icon-btn small" title={t.dayPrev} aria-label={t.dayPrev} onClick={() => { setDate(shiftDate(date, -1)); setPicking(false); }}>
           <Icon name="back" size={16} />
         </button>
-        <h2 id="today-title" title={t.dayHint}>{t.dayTitle(m, d)}</h2>
-        <button type="button" className="icon-btn small" title={t.dayNext} aria-label={t.dayNext} onClick={() => setDate(shiftDate(date, 1))}>
+        <h2 id="today-title">
+          <button
+            type="button" className={`day-title-btn${picking ? " on" : ""}`} aria-expanded={picking}
+            title={`${t.dayPick} · ${t.dayHint}`} onClick={() => setPicking(!picking)}
+          >
+            {t.dayTitle(m, d)}
+            <Icon name="calendar" size={14} />
+          </button>
+        </h2>
+        <button type="button" className="icon-btn small" title={t.dayNext} aria-label={t.dayNext} onClick={() => { setDate(shiftDate(date, 1)); setPicking(false); }}>
           <Icon name="chevron" size={16} />
         </button>
-        {!isToday && <button type="button" className="text-btn" onClick={() => setDate(today)}>{t.dayToday}</button>}
+        {!isToday && <button type="button" className="text-btn" onClick={() => { setDate(today); setPicking(false); }}>{t.dayToday}</button>}
         <button type="button" className="icon-btn small pop-close" aria-label={t.close} onClick={onClose}><Icon name="close" size={16} /></button>
       </header>
       <div className="pop-body" onMouseLeave={() => setHover(null)}>
         {error ? <p className="pop-empty">{t.loadError}</p>
           : !events ? <p className="pop-empty"><span className="spinner small" aria-hidden="true" /></p>
+          : picking ? (
+            <DayCalendar
+              date={date} today={today} counts={countsByDay(events, model.nodes, visible.nodes)}
+              onPick={(x) => { setDate(x); setPicking(false); }}
+            />
+          )
           : !items.length ? <p className="pop-empty">{everything ? t.dayEmptyFiltered : t.dayEmpty}</p>
           : DAY_SECTIONS.map((sec) => {
             const rows = items.filter((i) => i.section === sec);
@@ -107,6 +123,60 @@ function TodayPanel({ visible, today, onClose }: { visible: Visible; today: stri
               </section>
             );
           })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A month of the year being looked at, to jump to a day. Only the month and day matter to the
+ * list; the year sets the weekdays. Days with something on them carry a dot.
+ */
+function DayCalendar({ date, today, counts, onPick }: {
+  date: string; today: string; counts: Map<string, number>; onPick: (date: string) => void;
+}) {
+  const t = useT();
+  const [month, setMonth] = useState(() => ({ y: Number(date.slice(0, 4)), m: Number(date.slice(5, 7)) }));
+  const move = (by: number) => setMonth(({ y, m }) => {
+    const i = y * 12 + (m - 1) + by;
+    return { y: Math.floor(i / 12), m: (i % 12) + 1 };
+  });
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const first = new Date(Date.UTC(month.y, month.m - 1, 1)).getUTCDay();
+  const length = new Date(Date.UTC(month.y, month.m, 0)).getUTCDate();
+  const cells: (string | null)[] = [...Array<null>(first).fill(null)];
+  for (let d = 1; d <= length; d++) cells.push(`${month.y}-${pad(month.m)}-${pad(d)}`);
+  const countOn = (x: string) => [...birthdaysOn(x)].reduce((n, md) => n + (counts.get(md) ?? 0), 0);
+  const max = Math.max(1, ...cells.map((x) => (x ? countOn(x) : 0)));
+
+  return (
+    <div className="day-cal">
+      <div className="day-cal-head">
+        <button type="button" className="icon-btn small" title={t.dayPrevMonth} aria-label={t.dayPrevMonth} onClick={() => move(-1)}>
+          <Icon name="back" size={16} />
+        </button>
+        <span>{t.dayMonth(month.m)}</span>
+        <button type="button" className="icon-btn small" title={t.dayNextMonth} aria-label={t.dayNextMonth} onClick={() => move(1)}>
+          <Icon name="chevron" size={16} />
+        </button>
+      </div>
+      <div className="day-cal-grid" role="grid">
+        {t.weekdays.map((w, i) => <span key={`w${i}`} className="day-cal-wd" aria-hidden="true">{w}</span>)}
+        {cells.map((x, i) => {
+          if (!x) return <span key={`e${i}`} />;
+          const n = countOn(x);
+          const cls = ["day-cal-day", x === date ? "on" : "", x === today ? "today" : "", n ? "" : "none"].filter(Boolean).join(" ");
+          return (
+            <button
+              key={x} type="button" className={cls} aria-pressed={x === date} title={n ? t.dayCount(n) : undefined}
+              onClick={() => onPick(x)}
+            >
+              {Number(x.slice(8))}
+              {/* the dot grows a little with how much happened that day */}
+              {n > 0 && <i style={{ opacity: 0.45 + (0.55 * n) / max }} />}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
