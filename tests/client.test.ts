@@ -13,7 +13,7 @@ import { fandomTab, fandomUrl } from "../src/lib/links";
 import { namePartText, otherNames } from "../src/lib/names";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
-import { computeVisible, type VisibilityInput } from "../src/lib/visibility";
+import { computeVisible, sameVisible, type VisibilityInput } from "../src/lib/visibility";
 import { buildModel } from "../src/model";
 import { cloneFilters, NOVERLAP_DEFAULTS, type ViewState } from "../src/view";
 import { fixture } from "./fixtures";
@@ -70,6 +70,13 @@ describe("visibility", () => {
     const v = computeVisible(model, view({ projects: ["beta"] }));
     expect(v.nodes.has("work:alpha/w1")).toBe(false);
     expect(v.nodes.has("release:beta/2024-r2")).toBe(true);
+  });
+
+  it("tells the same picture from another one by content, not by identity", () => {
+    expect(sameVisible(computeVisible(model, view()), computeVisible(model, view()))).toBe(true);
+    expect(sameVisible(computeVisible(model, view()), computeVisible(model, view({ drama: true })))).toBe(false);
+    // a selected node the filters leave out joins the picture
+    expect(sameVisible(computeVisible(model, view()), computeVisible(model, view({ selected: "work:alpha/d1" })))).toBe(false);
   });
 });
 

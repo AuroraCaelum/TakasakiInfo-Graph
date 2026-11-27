@@ -7,6 +7,7 @@ import type { NodeDisplayData, EdgeDisplayData } from "sigma/types";
 import { animateNodes } from "sigma/utils";
 
 import type { GNode } from "../../shared/graph";
+import { isDefaultFa2 } from "../../shared/layout";
 import { useModel, usePalette, useT } from "../context";
 import { Icon } from "../icons";
 import type { PathResult } from "../lib/analysis";
@@ -15,7 +16,7 @@ import { classOf, colorOf } from "../lib/classes";
 import { focusLayout } from "../lib/focus-layout";
 import { runLayout, type Point } from "../lib/layouts";
 import { nameOf } from "../lib/names";
-import { computeVisible, type Visible } from "../lib/visibility";
+import { computeVisible, sameVisible, type Visible } from "../lib/visibility";
 import type { EdgeAttrs, NodeAttrs } from "../model";
 import { useApp, useFilters } from "../store";
 import { LayoutSettingsPanel } from "../ui/LayoutSettings";
@@ -107,6 +108,13 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const laidOut = useMemo(() => computeVisible(model, { ...filters, selected: null, focus: 0 }), [model, filters]);
   /** the inputs of the last run that finished (settled, or stopped by the viewer) */
   const finished = useRef<unknown[] | null>(null);
+  /**
+   * The precomputed map is the build's ForceAtlas2 run with the default forces, so it stands
+   * in for a live one: ForceAtlas2 shows it as is until the filters change from those the page
+   * opened with, or the forces from the defaults, or the viewer presses run.
+   */
+  const openedWith = useRef(laidOut);
+  const rerunSeen = useRef(rerun);
 
   const state = useRef<RenderState>({
     visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [],
@@ -424,6 +432,9 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       return animateNodes(graph, targets, { duration: 600, easing: "quadraticInOut" });
     }
     if (focused) return;
+    const pressed = rerun !== rerunSeen.current;
+    rerunSeen.current = rerun;
+    if (layout === "fa2" && !rest.current.size && sameVisible(laidOut, openedWith.current) && isDefaultFa2(fa2) && !pressed) return;
     // leaving the focus view resumes a run it cut short, but does not start a finished one over
     const inputs = [layout, laidOut, model, rerun, options];
     if (finished.current?.every((x, i) => x === inputs[i])) return;

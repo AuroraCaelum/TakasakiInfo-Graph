@@ -84,3 +84,9 @@ export function computeVisible(model: Model, f: VisibilityInput): Visible {
   }
   return { nodes, edges };
 }
+
+/** Whether `a` and `b` show the same nodes and edges. */
+export function sameVisible(a: Visible, b: Visible): boolean {
+  const same = (x: Set<string>, y: Set<string>) => x.size === y.size && [...x].every((k) => y.has(k));
+  return a === b || (same(a.nodes, b.nodes) && same(a.edges, b.edges));
+}
