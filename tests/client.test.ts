@@ -12,6 +12,8 @@ import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
 import { buildDays } from "../scripts/lib/days";
 import { countsByDay, eventsOn, finalConsonant, parseTemplate, particle, shiftDate } from "../src/lib/days";
 import { fandomTab, fandomUrl } from "../src/lib/links";
+import { issueUrl, nodePageUrl } from "../src/lib/report";
+import { DICTS } from "../src/i18n";
 import { namePartText, otherNames } from "../src/lib/names";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
@@ -375,5 +377,29 @@ describe("this day in Love Live!", () => {
   it("moves a date by days across months and years", () => {
     expect(shiftDate("2026-12-31", 1)).toBe("2027-01-01");
     expect(shiftDate("2024-03-01", -1)).toBe("2024-02-29");
+  });
+});
+
+describe("error reports", () => {
+  it("links back to the node with only it selected", () => {
+    expect(nodePageUrl({ origin: "https://x.github.io", pathname: "/graph/" }, "work:alpha/w1"))
+      .toBe("https://x.github.io/graph/?n=work:alpha/w1");
+  });
+
+  it("opens a new issue on the data repository, filled in with the node", () => {
+    const node = model.nodes.get("work:alpha/w1")!;
+    const url = new URL(issueUrl({
+      node, name: "W1", type: "곡", sub: null, projects: ["알파"], tab: "개요", page: "https://x/?n=work:alpha/w1",
+      meta: { ...model.meta, dbLastUpdate: "2026-11-27T05:51:59Z", sha: "5cfa74f5be01" }, ui: "ko", t: DICTS.ko,
+    }));
+    expect(url.origin + url.pathname).toBe("https://github.com/AuroraCaelum/TakasakiInfo/issues/new");
+    expect(url.searchParams.get("title")).toBe("[오류 제보] 곡 · W1");
+    expect(url.searchParams.get("labels")).toBe("bug");
+    const body = url.searchParams.get("body")!;
+    expect(body).toContain("- 키: `work:alpha/w1`");
+    expect(body).toContain("- 프로젝트: 알파");
+    expect(body).toContain("- 페이지: https://x/?n=work:alpha/w1");
+    expect(body).toContain("- 데이터 버전: 2026-11-27T05:51:59Z (5cfa74f)");
+    expect(body).toContain("### 어떤 점이 잘못됐나요?");
   });
 });
