@@ -8,6 +8,7 @@ import forceAtlas2 from "graphology-layout-forceatlas2";
 import { FA2_DEFAULTS, fa2Settings } from "../shared/layout";
 import noverlap from "graphology-layout-noverlap";
 import { fitInto, layoutGraph, noverlapGraph } from "../src/lib/layouts";
+import { audioPasses, audioSummary, formatDuration, keyText, parseBpm } from "../src/lib/audio";
 import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
 import { fandomTab, fandomUrl } from "../src/lib/links";
 import { namePartText, otherNames } from "../src/lib/names";
@@ -77,6 +78,45 @@ describe("visibility", () => {
     expect(sameVisible(computeVisible(model, view()), computeVisible(model, view({ drama: true })))).toBe(false);
     // a selected node the filters leave out joins the picture
     expect(sameVisible(computeVisible(model, view()), computeVisible(model, view({ selected: "work:alpha/d1" })))).toBe(false);
+  });
+});
+
+describe("mood and tempo", () => {
+  it("writes length, key and tempo the way people read them", () => {
+    expect(formatDuration(256)).toBe("4:16");
+    expect(formatDuration(65)).toBe("1:05");
+    expect(formatDuration(3723)).toBe("1:02:03");
+    expect([keyText("F#m"), keyText("Bb"), keyText("C"), keyText("Ebm")]).toEqual(["F♯m", "B♭", "C", "E♭m"]);
+    expect(audioSummary({ dur: 256, key: "F#m", bpm: 150 })).toBe("4:16 · F♯m · 150 BPM");
+    expect(audioSummary({ dur: 200 })).toBe("3:20");
+    expect(audioSummary(undefined)).toBe("");
+  });
+
+  it("takes a BPM bound only as a whole number in range", () => {
+    expect([parseBpm("140"), parseBpm(" 90 "), parseBpm("0"), parseBpm("401"), parseBpm("12.5"), parseBpm("")]).toEqual([140, 90, null, null, null, null]);
+  });
+
+  it("filters works by mood: any label within an axis, every axis chosen", () => {
+    const w1 = model.nodes.get("work:alpha/w1")!; // upbeat, wistful, 150
+    const pass = (moods: string[], bpm: [number | null, number | null] = [null, null]) => audioPasses(w1, { moods, bpm });
+    expect(pass([])).toBe(true);
+    expect(pass(["upbeat"])).toBe(true);
+    expect(pass(["slow"])).toBe(false);
+    expect(pass(["upbeat", "slow"])).toBe(true); // tempo: either
+    expect(pass(["upbeat", "bright"])).toBe(false); // tempo and key: both
+    expect(pass(["upbeat", "wistful"])).toBe(true);
+    expect(pass([], [140, 160])).toBe(true);
+    expect(pass([], [151, null])).toBe(false);
+    expect(pass([], [null, 150])).toBe(true);
+  });
+
+  it("hides works without the values once the filter is on, and leaves other nodes and the selection alone", () => {
+    const on = computeVisible(model, view({ moods: ["wistful"] }));
+    expect(on.nodes.has("work:alpha/w1")).toBe(true);
+    expect(on.nodes.has("work:alpha/w2")).toBe(false); // length only
+    expect(on.nodes.has("work:alpha/bgm1")).toBe(false);
+    expect(on.nodes.has("person:writer")).toBe(true);
+    expect(computeVisible(model, view({ bpm: [100, null], selected: "work:alpha/w2" })).nodes.has("work:alpha/w2")).toBe(true);
   });
 });
 
@@ -153,12 +193,14 @@ describe("url", () => {
     const s: ViewState = {
       ...base, selected: "work:alpha/w1", tab: "related", focus: 2, colorBy: "community", projects: ["alpha"],
       drama: true, bgm: false, time: "2023-01-01", relations: { ...base.relations, project: false, co_credit: true },
-      types: { ...base.types, venue: false },
+      types: { ...base.types, venue: false }, moods: ["upbeat", "wistful"], bpm: [120, null],
     };
     const q = toQuery(s, base);
     expect(q).toContain("n=work:alpha/w1");
     expect(q).toContain("r=-project,co_credit");
     expect(q).toContain("bgm=0");
+    expect(q).toContain("mood=upbeat,wistful");
+    expect(q).toContain("bpm=120-");
     expect(fromQuery(q, base, isNode)).toEqual(s);
     expect(toQuery(base, base)).toBe("");
   });
@@ -173,6 +215,10 @@ describe("url", () => {
     expect(fromQuery("?ui=en&names=ko", base, isNode).nameLang).toBe("ko");
     expect(toQuery({ ...base, uiLang: "en", nameLang: "rom" }, base)).toBe("?ui=en");
     expect(toQuery({ ...base, uiLang: "en", nameLang: "ko" }, base)).toBe("?ui=en&names=ko");
+    const m = fromQuery("?mood=sad,slow&bpm=180-90", base, isNode);
+    expect([m.moods, m.bpm]).toEqual([["slow"], [90, 180]]); // unknown labels dropped, bounds put in order
+    expect(fromQuery("?bpm=fast", base, isNode).bpm).toEqual([null, null]);
+    expect(fromQuery("?bpm=-0", base, isNode).bpm).toEqual([null, null]);
   });
 });
 

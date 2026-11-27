@@ -1,10 +1,10 @@
-import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES } from "../../../shared/graph";
+import { DERIVED_RELATIONS, FACT_RELATIONS, MOODS, NODE_TYPES } from "../../../shared/graph";
 import { useModel, usePalette, useT } from "../../context";
 import { Icon } from "../../icons";
 import type { Visible } from "../../lib/visibility";
 import { useApp } from "../../store";
 import { useProjectName } from "../common";
-import { COLOR_MODES, useFilterToggles } from "../FilterPanel";
+import { BpmRange, COLOR_MODES, useFilterToggles } from "../FilterPanel";
 import { Segmented, SwitchRow, TypeDot } from "./parts";
 
 /** Every filter of the side panel, as a sheet with touch-sized controls. */
@@ -15,7 +15,7 @@ export function FilterSheet({ visible, onClose }: { visible: Visible; onClose: (
   const s = useApp();
   const projectName = useProjectName();
   const counts = model.meta.counts;
-  const { toggleType, toggleRel, projectOn, toggleProject, dramaCount, bgmCount } = useFilterToggles();
+  const { toggleType, toggleRel, projectOn, toggleProject, dramaCount, bgmCount, toggleMood, clearAudio, audioOn, audioCount, moodCount } = useFilterToggles();
 
   return (
     <>
@@ -50,6 +50,28 @@ export function FilterSheet({ visible, onClose }: { visible: Visible; onClose: (
             lead={<TypeDot type="work" sub="bgm" size={24} />} />
           <SwitchRow on={s.drama} disabled={!s.types.work} onChange={() => s.set({ drama: !s.drama })} label={t.includeDrama} count={dramaCount}
             lead={<TypeDot type="work" size={24} />} />
+
+          <h3 className="m-label">
+            {t.audioFilter}
+            {audioOn && (
+              <span className="m-label-actions">
+                <button type="button" className="m-text-btn" onClick={clearAudio}>{t.clear}</button>
+              </span>
+            )}
+          </h3>
+          <p className="m-hint">{t.audioFilterHint(audioCount)}</p>
+          <div className="m-chips">
+            {MOODS.map((m) => (
+              <button
+                key={m} type="button" role="checkbox" aria-checked={s.moods.includes(m)} disabled={!s.types.work}
+                className={`m-chip${s.moods.includes(m) ? " on" : ""}`} onClick={() => toggleMood(m)}
+              >
+                {t.moods[m]} <span className="tabular">{moodCount(m).toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+          <p className="m-hint">{t.moodAxisHint}</p>
+          <BpmRange inputClass="num-input m-num-input" />
 
           <h3 className="m-label">
             {t.projects}

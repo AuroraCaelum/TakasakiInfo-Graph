@@ -263,6 +263,78 @@ describe("buildGraph: robustness", () => {
   });
 });
 
+describe("buildGraph: length, key and tempo (D61)", () => {
+  it("puts the representative recording's values on the work node, without the inherited-from id", () => {
+    expect(built.nodes.get("work:alpha/w1")?.au).toEqual({ dur: 256, key: "F#m", bpm: 150, mood: ["upbeat", "wistful"] });
+    expect(built.nodes.get("work:alpha/w2")?.au).toEqual({ dur: 200 }); // the alt version's key is not the song's
+    expect(built.nodes.get("work:alpha/bgm1")?.au).toBeUndefined();
+    expect(built.nodes.get("work:beta/unreleased")?.au).toBeUndefined(); // representative, but nothing known
+  });
+
+  it("gives every recording its own values, and says which recording an off vocal's key and tempo are from", () => {
+    const w1 = built.details.get("work:alpha/w1") as WorkDetail;
+    expect(w1.recordings.map((r) => [r.id, r.representative ?? false, r.audio])).toEqual([
+      ["original", true, { dur: 256, key: "F#m", bpm: 150, mood: ["upbeat", "wistful"] }],
+      ["off-vocal", false, { dur: 255, key: "F#m", bpm: 150, mood: ["upbeat", "wistful"], from: "original" }],
+    ]);
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.audio).toEqual({ key: "Bb", bpm: 96, mood: ["slow", "bright"] });
+  });
+
+  it("reads recordings views older than D61 without the values", () => {
+    const ds = fixture();
+    ds.recordings = ds.recordings.map(({ id, work, main_link }) => ({ id, work, main_link }));
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual([]);
+    expect(b.nodes.get("work:alpha/w1")?.au).toBeUndefined();
+    expect((b.details.get("work:alpha/w1") as WorkDetail).recordings[0].audio).toBeUndefined();
+  });
+});
+
+describe("buildGraph: casts, live recordings and credited names", () => {
+  it("lists a concert's cast and a show's own, without adding appearance edges", () => {
+    const live = built.details.get("concert:alpha/live") as ConcertDetail;
+    expect(live.cast).toEqual([{ ref: "artist:unit-a" }, { ref: "person:actor", role: "character:alpha/c2" }]);
+    expect(live.stops[1].performances[0].cast).toEqual([{ ref: "character:alpha/c3" }]);
+    expect(live.stops[0].performances[0].cast).toBeUndefined(); // the concert's cast
+    expect(edgesOf("appearance").some((e) => e.t === "concert:alpha/live")).toBe(false);
+    expect((built.details.get("concert:beta/fes") as ConcertDetail).cast).toEqual([]);
+  });
+
+  it("links a live recording to the show it was recorded at, from both sides", () => {
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.live).toEqual({ concert: "concert:alpha/live", date: "2021-06-01" });
+    expect((built.details.get("concert:alpha/live") as ConcertDetail).liveRecordings).toEqual([
+      { work: "work:alpha/w2", rec: "alt", date: "2021-06-01" },
+    ]);
+  });
+
+  it("reports a live recording of an unknown concert and leaves the link out", () => {
+    const ds = fixture();
+    ds.works[1].recordings[1].live = { concert: "nope" };
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual(["work alpha/w2#alt: unknown reference concert:nope"]);
+    expect((b.details.get("work:alpha/w2") as WorkDetail).recordings[1].live).toBeUndefined();
+  });
+
+  it("shows a credit under the pen name or former name it prints, and makes those names searchable", () => {
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.override?.composer).toEqual([
+      { ref: "person:composer", credited: { ja: "旧名 花子", rom: "Hanako Kyumei", ko: "규메이 하나코" } },
+    ]);
+    expect(built.nodes.get("person:composer")?.al).toEqual(["旧名 花子", "Hanako Kyumei", "규메이 하나코"]);
+    expect((built.details.get("person:composer") as PersonDetail).aliases[0].names?.rom).toBe("Hanako Kyumei");
+  });
+
+  it("reports a credited name that is not one of the person's aliases, and prints it as given", () => {
+    const ds = fixture();
+    ds.works[0].credits!.lyricist = [{ person: "writer", credited_name: "謎の人" }];
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual(['work alpha/w1: credited name "謎の人" is not an alias of person writer']);
+    expect((b.details.get("work:alpha/w1") as WorkDetail).credits.lyricist[0].credited).toEqual({ ja: "謎の人" });
+  });
+});
+
 describe("mergePeriods", () => {
   it("joins overlapping and adjacent periods and keeps gaps", () => {
     expect(mergePeriods([["2024-04-01", "2025-03-31"], ["2023-04-01", "2024-03-31"], ["2026-01-01", null]]))

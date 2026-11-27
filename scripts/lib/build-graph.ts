@@ -22,11 +22,14 @@
  * - co_perform: two characters both singing a work. Artists count as their lineup at the
  *   recording's first release date; a person singing in a role counts as the role. w = works.
  * - shared_member: two artists whose lineups share characters. w = shared characters.
+ *
+ * Shown but not linked: a concert's cast (D52) and the show a live recording was recorded at (D54)
+ * are in the details only; the appearance edge stays "sang in the set lists".
  */
 
 import {
   ARRANGER_ROLES, EXTERNAL_PROJECT, isDerived,
-  type ArrangerRole, type ArtistDetail, type CharacterDetail, type CityDetail, type ConcertDetail, type CreditRef, type Detail,
+  type ArrangerRole, type ArtistDetail, type AudioFacts, type CharacterDetail, type CityDetail, type ConcertDetail, type CreditRef, type Detail,
   type GEdge, type GNode, type LinkRef, type NodeType, type Period, type PerformerRef, type PersonDetail, type ProjectDetail,
   type Relation, type ReleaseDetail, type ReleaseTrack, type SetlistEntry, type VenueDetail, type WorkAppearance, type WorkDetail,
   type WorkPerformance,
@@ -60,6 +63,7 @@ interface EdgeAcc {
 }
 
 const sortedUnique = (xs: Iterable<string>) => [...new Set(xs)].sort();
+const sortedUniqueInOrder = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))];
 /** The projects a node is drawn under: the external project is not one (see EXTERNAL_PROJECT). */
 const ownProjects = (ps: string[]) => sortedUnique(ps.filter((p) => p !== EXTERNAL_PROJECT));
 const isExternal = (ps: string[]) => ps.length > 0 && ps.every((p) => p === EXTERNAL_PROJECT);
@@ -90,7 +94,8 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     if (p.id !== EXTERNAL_PROJECT) addNode({ k: nodeKey("project", p.id), t: "project", n: p.names, p: [p.id] });
   }
   for (const p of ds.persons) {
-    const al = (p.aliases ?? []).map((a) => a.text);
+    // a pen name's names in every language are searchable too (D58)
+    const al = sortedUniqueInOrder((p.aliases ?? []).flatMap((a) => [a.text, ...Object.values(a.names ?? {})]));
     addNode({ k: nodeKey("person", p.id), t: "person", n: p.names, p: [], ...(al.length ? { al } : {}), ...birthday(`person ${p.id}`, p.birthday) });
   }
   for (const c of ds.characters) {
@@ -187,6 +192,23 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
 
   // --- works: credits and performers -----------------------------------------------------
   const mainLinks = new Map(ds.recordings.map((r) => [r.id, r.main_link]));
+  const recRows = new Map(ds.recordings.map((r) => [r.id, r]));
+  /** Length, key and tempo of a recording as the recordings view gives them (D61); null when it has none. */
+  const audioOf = (row: V.RecordingRow | undefined): (AudioFacts & { from?: string }) | null => {
+    if (!row) return null;
+    const a = row.audio;
+    const out: AudioFacts & { from?: string } = {
+      ...(row.duration ? { dur: row.duration } : {}),
+      ...(a?.key ? { key: a.key } : {}),
+      ...(a?.bpm ? { bpm: a.bpm } : {}),
+      ...(a?.time_signature ? { ts: a.time_signature } : {}),
+      ...(a?.mood?.length ? { mood: a.mood } : {}),
+      ...(a?.from && a.from !== row.id ? { from: a.from.slice(a.from.indexOf("#") + 1) } : {}),
+    };
+    return Object.keys(out).length ? out : null;
+  };
+  /** concert key → recordings released from it (D54) */
+  const liveByConcert = new Map<string, ConcertDetail["liveRecordings"]>();
   const coCredit = new Map<string, { a: string; b: string; works: Set<string>; d?: string }>();
   const coPerform = new Map<string, { a: string; b: string; works: Set<string>; d?: string }>();
   const personExtra = new Map<string, Pick<PersonDetail, "affiliations" | "arranged" | "sungAs">>();
@@ -197,12 +219,22 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
   };
   const playedBy = new Map<string, Map<string, Set<string>>>(); // character → person → works
 
+  /** person id → alias text → the alias's names (D58) */
+  const aliasNames = new Map(ds.persons.map((p) => [p.id, new Map((p.aliases ?? []).map((a) => [a.text, a.names]))]));
+  /** The names a credit prints under a pen name or former name: its alias's, else the text as printed. */
+  const creditedNames = (c: V.Credit, where: string): V.Names | null => {
+    if (!c.credited_name || !c.person) return null;
+    const aliases = aliasNames.get(c.person);
+    if (aliases && !aliases.has(c.credited_name)) warnings.add(`${where}: credited name "${c.credited_name}" is not an alias of person ${c.person}`);
+    return aliases?.get(c.credited_name) ?? { ja: c.credited_name };
+  };
   const toCreditRef = (c: V.Credit, where: string): CreditRef | null => {
     const ref = refOf(c, where);
     if (!ref) return null;
+    const credited = creditedNames(c, where);
     return {
       ref, ...(c.affiliation ? { affiliation: c.affiliation } : {}), ...(c.affiliation && c.fullwidth ? { fullwidth: true as const } : {}),
-      ...(c.role ? { role: c.role } : {}),
+      ...(c.role ? { role: c.role } : {}), ...(credited ? { credited } : {}),
     };
   };
   const creditRefs = (list: V.Credit[] | undefined, where: string) =>
@@ -215,6 +247,9 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       ref, ...(role ? { role } : {}), ...(p.featured ? { featured: true as const } : {}), ...(p.joint ? { joint: true as const } : {}),
     };
   };
+
+  const performerRefs = (list: V.Performer[] | undefined, where: string) =>
+    (list ?? []).map((p) => toPerformerRef(p, where)).filter((x): x is PerformerRef => !!x);
 
   /** Characters singing a recording: artists expanded to the lineup at `date` (co_perform). */
   const singersOf = (performers: V.Performer[], date: string | undefined): string[] => {
@@ -288,6 +323,21 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
         }
       }
       if (counts) for (const s of singersOf(rec.performers ?? [], recordingDate(w.id, rec.id))) workSingers.add(s);
+      const row = recRows.get(`${w.id}#${rec.id}`);
+      const audio = audioOf(row);
+      if (row?.representative && audio) {
+        const au = { ...audio };
+        delete au.from; // the node carries the values only
+        nodes.get(wk)!.au = au;
+      }
+      const liveKey = rec.live ? checked(nodeKey("concert", rec.live.concert), rwhere) : null;
+      const live = rec.live && liveKey ? { concert: liveKey, ...(rec.live.date ? { date: rec.live.date } : {}), ...(rec.live.label ? { label: rec.live.label } : {}) } : null;
+      if (live) {
+        liveByConcert.set(live.concert, [...(liveByConcert.get(live.concert) ?? []), {
+          work: wk, rec: rec.id,
+          ...(live.date ? { date: live.date } : {}), ...(live.label ? { label: live.label } : {}),
+        }]);
+      }
       recordings.push({
         id: rec.id,
         kind: rec.kind ?? "vocal",
@@ -304,6 +354,9 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
           },
         } : {}),
         ...(rec.instrumental_of ? { instrumentalOf: rec.instrumental_of } : {}),
+        ...(live ? { live } : {}),
+        ...(audio ? { audio } : {}),
+        ...(row?.representative ? { representative: true as const } : {}),
         ...(rec.external_ids && Object.keys(rec.external_ids).length ? { externalIds: rec.external_ids } : {}),
         ...(mainLinks.get(`${w.id}#${rec.id}`) ? { mainLink: mainLinks.get(`${w.id}#${rec.id}`)! } : {}),
         ...(rec.evidence && Object.keys(rec.evidence).length ? { evidence: rec.evidence } : {}),
@@ -542,7 +595,8 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
         });
         for (const k of sang) count(appeared, k, p.date);
         const fandom = p.external_ids?.fandom;
-        return { date: p.date, ...(p.label ? { label: p.label } : {}), ...(fandom ? { fandom } : {}), setlist };
+        const cast = p.cast?.length ? performerRefs(p.cast, pwhere) : null;
+        return { date: p.date, ...(p.label ? { label: p.label } : {}), ...(fandom ? { fandom } : {}), ...(cast ? { cast } : {}), setlist };
       });
       stops.push({ id: s.id, ...(cityKey ? { city: cityKey } : {}), ...(s.label ? { label: s.label } : {}), ...(vk ? { venue: vk } : {}), performances });
     }
@@ -550,7 +604,11 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
     for (const [k, { n, d }] of appeared) addEdge("appearance", k, ck, { w: n, d });
     linkProjects(ck, c.projects, where);
     details.set(ck, {
-      t: "concert", title: c.title, status: c.status ?? "settled", projects: c.projects, stops,
+      t: "concert", title: c.title, status: c.status ?? "settled", projects: c.projects,
+      cast: performerRefs(c.cast, where),
+      stops,
+      liveRecordings: (liveByConcert.get(ck) ?? []).sort((a, b) =>
+        (a.date ?? "9").localeCompare(b.date ?? "9") || (a.label ?? "").localeCompare(b.label ?? "") || a.work.localeCompare(b.work) || a.rec.localeCompare(b.rec)),
       ...(c.external_ids && Object.keys(c.external_ids).length ? { externalIds: c.external_ids } : {}),
       ...(c.legacy?.event_code ? { eventCode: c.legacy.event_code } : {}),
       ...(c.evidence ? { evidence: c.evidence } : {}),
@@ -686,7 +744,9 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       ...(p.family_name ? { familyName: p.family_name } : {}), ...(p.given_name ? { givenName: p.given_name } : {}),
       ...(p.birthday && BIRTHDAY.test(p.birthday) ? { birthday: p.birthday } : {}),
       nativeScript: p.native_script ?? "ja",
-      aliases: (p.aliases ?? []).map((a) => ({ text: a.text, kind: a.kind ?? "variant", ...(a.note ? { note: a.note } : {}) })),
+      aliases: (p.aliases ?? []).map((a) => ({
+        text: a.text, kind: a.kind ?? "variant", ...(a.names ? { names: a.names } : {}), ...(a.note ? { note: a.note } : {}),
+      })),
       distinctFrom: (p.distinct_from ?? []).map((id) => nodeKey("person", id)),
       ...x,
       ...(p.evidence ? { evidence: p.evidence } : {}),

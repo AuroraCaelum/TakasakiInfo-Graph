@@ -136,6 +136,6 @@ export function chooseNoverlap(patch: Partial<NoverlapOptions> | null): void {
 export function useFilters() {
   return useApp(useShallow((s) => ({
     types: s.types, drama: s.drama, bgm: s.bgm, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
-    time: s.time,
+    moods: s.moods, bpm: s.bpm, time: s.time,
   })));
 }

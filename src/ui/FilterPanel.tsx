@@ -1,6 +1,9 @@
-import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
+import { useEffect, useState } from "react";
+
+import { DERIVED_RELATIONS, FACT_RELATIONS, MOODS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { Icon, TypeIcon } from "../icons";
+import { audioFilterOn, BPM_LIMIT, parseBpm } from "../lib/audio";
 import { useApp } from "../store";
 import type { ColorBy } from "../view";
 import { useProjectName } from "./common";
@@ -23,7 +26,52 @@ export function useFilterToggles() {
     /** works that are drama tracks and BGM cues, which have their own toggles */
     dramaCount: model.list.filter((n) => n.t === "work" && n.s === "drama").length,
     bgmCount: model.list.filter((n) => n.t === "work" && n.s === "bgm").length,
+    toggleMood: (m: string) => s.set({ moods: s.moods.includes(m) ? s.moods.filter((x) => x !== m) : [...s.moods, m] }),
+    clearAudio: () => s.set({ moods: [], bpm: [null, null] }),
+    audioOn: audioFilterOn(s),
+    /** works whose representative recording has a key or tempo, and those with each mood label */
+    audioCount: model.list.filter((n) => n.t === "work" && (n.au?.key || n.au?.bpm)).length,
+    moodCount: (m: string) => model.list.filter((n) => n.t === "work" && n.au?.mood?.includes(m)).length,
   };
+}
+
+/** One bound of the BPM filter. The text is the viewer's while they type; the filter takes it once it is a valid BPM or empty. */
+function BpmInput({ which, className }: { which: 0 | 1; className: string }) {
+  const t = useT();
+  const bpm = useApp((s) => s.bpm);
+  const set = useApp((s) => s.set);
+  const value = bpm[which];
+  const [text, setText] = useState(value === null ? "" : String(value));
+  useEffect(() => { setText(value === null ? "" : String(value)); }, [value]);
+  const label = which === 0 ? t.bpmMin : t.bpmMax;
+  return (
+    <input
+      type="number" inputMode="numeric" min={1} max={BPM_LIMIT} step={1} className={className} value={text} placeholder={label}
+      aria-label={`${t.bpmRange}: ${label}`}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = e.target.value.trim() === "" ? null : parseBpm(e.target.value);
+        if (n !== null || e.target.value.trim() === "") {
+          const next: [number | null, number | null] = [...bpm];
+          next[which] = n;
+          set({ bpm: next });
+        }
+      }}
+    />
+  );
+}
+
+/** The BPM filter's two bounds, `min – max`. */
+export function BpmRange({ inputClass }: { inputClass: string }) {
+  const t = useT();
+  return (
+    <div className="bpm-range" role="group" aria-label={t.bpmRange}>
+      <BpmInput which={0} className={inputClass} />
+      <span className="muted" aria-hidden="true">–</span>
+      <BpmInput which={1} className={inputClass} />
+      <span className="muted small">BPM</span>
+    </div>
+  );
 }
 
 export function FilterPanel() {
@@ -33,7 +81,7 @@ export function FilterPanel() {
   const s = useApp();
   const projectName = useProjectName();
   const counts = model.meta.counts;
-  const { toggleType, toggleRel, projectOn, toggleProject, dramaCount, bgmCount } = useFilterToggles();
+  const { toggleType, toggleRel, projectOn, toggleProject, dramaCount, bgmCount, toggleMood, clearAudio, audioOn, audioCount, moodCount } = useFilterToggles();
 
   return (
     <aside className={`filters${s.filtersOpen ? " open" : ""}`} aria-label={t.filters}>
@@ -84,6 +132,27 @@ export function FilterPanel() {
               )}
             </div>
           ))}
+        </section>
+
+        <section className="fs">
+          <h3 className="fs-title">
+            {t.audioFilter}
+            {audioOn && (
+              <span className="legend-actions">
+                <button type="button" className="text-btn" onClick={clearAudio}>{t.clear}</button>
+              </span>
+            )}
+          </h3>
+          <p className="hint">{t.audioFilterHint(audioCount)}</p>
+          {MOODS.map((m) => (
+            <label key={m} className="check">
+              <input type="checkbox" checked={s.moods.includes(m)} disabled={!s.types.work} onChange={() => toggleMood(m)} />
+              <span className="check-label">{t.moods[m]}</span>
+              <span className="count">{moodCount(m).toLocaleString()}</span>
+            </label>
+          ))}
+          <p className="hint">{t.moodAxisHint}</p>
+          <BpmRange inputClass="num-input" />
         </section>
 
         <section className="fs">

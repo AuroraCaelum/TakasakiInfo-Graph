@@ -28,6 +28,10 @@ export interface Filters {
   projects: string[] | null;
   relations: Record<Relation, boolean>;
   hideIsolated: boolean;
+  /** works by the mood labels of their representative recording (D61): within tempo or key any, across both all */
+  moods: string[];
+  /** works by the BPM of their representative recording, inclusive; null is open */
+  bpm: [number | null, number | null];
 }
 
 export interface ViewState extends Filters {
@@ -56,8 +60,13 @@ export const DEFAULT_FILTERS: Filters = {
     ...(Object.fromEntries(DERIVED_RELATIONS.map((r) => [r, false])) as Record<Relation, boolean>),
   },
   hideIsolated: true,
+  moods: [],
+  bpm: [null, null],
 };
 
 export function cloneFilters(f: Filters = DEFAULT_FILTERS): Filters {
-  return { ...f, types: { ...f.types }, relations: { ...f.relations }, projects: f.projects ? [...f.projects] : null };
+  return {
+    ...f, types: { ...f.types }, relations: { ...f.relations }, projects: f.projects ? [...f.projects] : null,
+    moods: [...f.moods], bpm: [...f.bpm],
+  };
 }
