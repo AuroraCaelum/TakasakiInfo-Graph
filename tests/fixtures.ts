@@ -36,7 +36,10 @@ export function fixture(): V.V1Dataset {
       id: "writer", names: { ja: "作詞 太郎", rom: "Taro Sakushi", ko: "사쿠시 타로" },
       aliases: [{ text: "作詞太郎", kind: "variant" }, { text: "作詞大郎", kind: "misprint", note: "booklet" }],
     },
-    { id: "composer", names: { ja: "作曲 花子", rom: "Hanako Sakkyoku", ko: "삿쿄쿠 하나코" } },
+    {
+      id: "composer", names: { ja: "作曲 花子", rom: "Hanako Sakkyoku", ko: "삿쿄쿠 하나코" },
+      aliases: [{ text: "旧名 花子", kind: "former", names: { ja: "旧名 花子", rom: "Hanako Kyumei", ko: "규메이 하나코" } }],
+    },
     { id: "arranger", names: { rom: "ARR", ja: "ARR", ko: "ARR" }, native_script: "latin" },
     { id: "cv-one", names: { ja: "声優 一", rom: "Ichi Seiyu" }, birthday: "1997-05-02" },
     { id: "cv-two", names: { ja: "声優 二", rom: "Ni Seiyu" } },
@@ -76,7 +79,9 @@ export function fixture(): V.V1Dataset {
         { id: "original", performers: [{ character: "alpha/c3" }, { person: "actor", role: "alpha/c2" }], arranger: [{ person: "arranger" }] },
         {
           id: "alt", version: "Alt Ver.", performers: [{ character: "alpha/c3" }, { character: "external/guest", featured: true }],
-          arranger: [{ person: "arranger" }], strings_arranger: [{ person: "arranger" }], credits_override: { composer: [{ person: "composer" }] },
+          arranger: [{ person: "arranger" }], strings_arranger: [{ person: "arranger" }],
+          credits_override: { composer: [{ person: "composer", credited_name: "旧名 花子" }] },
+          live: { concert: "alpha/live", date: "2021-06-01" },
         },
       ],
     },
@@ -103,9 +108,21 @@ export function fixture(): V.V1Dataset {
     },
   ];
   const tracks = trackRows(releases, { "alpha/2022-r1@e1/1-1": "https://music.youtube.com/watch?v=a" });
-  const recordings: V.RecordingRow[] = works.flatMap((w) => w.recordings.map((r) => ({
-    id: `${w.id}#${r.id}`, work: w.id, main_link: w.id === "alpha/w1" && r.id === "original" ? "https://music.youtube.com/watch?v=a" : null,
-  })));
+  // length, key and tempo as build_v1.recording_view writes them: the off vocal takes its vocal recording's (D61)
+  const audio: Record<string, Pick<V.RecordingRow, "duration" | "audio">> = {
+    "alpha/w1#original": { duration: 256, audio: { key: "F#m", bpm: 150, mood: ["upbeat", "wistful"] } },
+    "alpha/w1#off-vocal": { duration: 255, audio: { key: "F#m", bpm: 150, mood: ["upbeat", "wistful"], from: "alpha/w1#original" } },
+    "alpha/w2#original": { duration: 200, audio: null },
+    "alpha/w2#alt": { duration: null, audio: { key: "Bb", bpm: 96, mood: ["slow", "bright"] } },
+  };
+  const representative = new Set(["alpha/w1#original", "alpha/w2#original", "alpha/d1#drama", "beta/unreleased#original"]);
+  const recordings: V.RecordingRow[] = works.flatMap((w) => w.recordings.map((r) => {
+    const id = `${w.id}#${r.id}`;
+    return {
+      id, work: w.id, main_link: w.id === "alpha/w1" && r.id === "original" ? "https://youtu.be/AbCdEfGhIj0" : null,
+      duration: null, audio: null, ...audio[id], representative: representative.has(id),
+    };
+  }));
   const cities: V.City[] = [
     { id: "tokyo", names: { rom: "Tokyo" }, evidence: { names: { status: "draft" } } },
     { id: "osaka", names: { rom: "Osaka" } },
@@ -117,6 +134,7 @@ export function fixture(): V.V1Dataset {
   ];
   const concerts: V.Concert[] = [{
     id: "alpha/live", projects: ["alpha"], title: { ja: "ライブ" },
+    cast: [{ artist: "unit-a" }, { person: "actor", role: "alpha/c2" }],
     stops: [
       {
         id: "1-tokyo", city: "tokyo", venue: "hall-1", performances: [
@@ -124,7 +142,7 @@ export function fixture(): V.V1Dataset {
           { date: "2021-05-02", setlist: [{ work: "alpha/w1" }, { work: "alpha/w1", label: "again" }] },
         ],
       },
-      { id: "2-osaka", city: "osaka", venue: "hall-2", performances: [{ date: "2021-06-01", setlist: [{ work: "alpha/w2" }] }] },
+      { id: "2-osaka", city: "osaka", venue: "hall-2", performances: [{ date: "2021-06-01", cast: [{ character: "alpha/c3" }], setlist: [{ work: "alpha/w2" }] }] },
     ],
   }, {
     // after everything above, so its appearances leave the dates the tests pin down alone

@@ -2,18 +2,20 @@ import { Fragment, useEffect, useState, type ReactNode } from "react";
 
 import type {
   ArtistDetail, CharacterDetail, CityDetail, ConcertDetail, CreditRef, Detail, DetailFile, GNode, LinkRef, PerformerRef,
-  PersonDetail, ProjectDetail, ReleaseDetail, VenueDetail, WorkDetail,
+  PersonDetail, ProjectDetail, RecordingDetail, ReleaseDetail, VenueDetail, WorkDetail,
 } from "../../../shared/graph";
 import { ARRANGER_ROLES, NODE_TYPES, type ArrangerRole } from "../../../shared/graph";
 import type { Names } from "../../../shared/v1";
 import { useModel, usePalette, useT } from "../../context";
+import type { Dict } from "../../i18n";
 import { Icon, TypeIcon } from "../../icons";
+import { formatDuration, keyText } from "../../lib/audio";
 import { fandomTab } from "../../lib/links";
 import { chronological, neighborsByRelation, type NeighborFact } from "../../lib/neighbors";
 import { nameOf } from "../../lib/names";
 import { loadDetails } from "../../model";
 import { useApp } from "../../store";
-import { Aliases, Badge, EvidenceList, ExtLink, KV, More, NodeLink, PeriodText, Section, shortUrl } from "../common";
+import { Aliases, Badge, EvidenceList, ExtLink, KV, MoodBadges, More, NodeLink, PeriodText, Section, shortUrl, useNodeName } from "../common";
 
 export function DataTab({ node, detail }: { node: GNode; detail: Detail }) {
   switch (detail.t) {
@@ -50,15 +52,21 @@ function useAffiliation() {
   };
 }
 
+/** Credits as printed: a pen name or former name in place of the current name (D58), with the current name beside it. */
 function Credits({ list }: { list: CreditRef[] }) {
+  const t = useT();
   const name = useNames();
+  const nodeName = useNodeName();
   const affiliation = useAffiliation();
   if (!list.length) return null;
   return (
     <span className="chips">
       {list.map((c, i) => (
         <span key={i} className="chip-group">
-          <NodeLink k={c.ref} />
+          {c.credited
+            ? <NodeLink k={c.ref} label={name(c.credited)} title={t.creditedAs(nodeName(c.ref))} />
+            : <NodeLink k={c.ref} />}
+          {c.credited && name(c.credited) !== nodeName(c.ref) && <span className="muted small">= {nodeName(c.ref)}</span>}
           {c.affiliation && <span className="muted">{affiliation(c.affiliation, c.fullwidth)}</span>}
           {c.role && <span className="muted">[{name(c.role)}]</span>}
         </span>
@@ -185,6 +193,7 @@ function WorkData({ detail }: { detail: WorkDetail }) {
               <header className="card-head">
                 <strong>{name(r.title ?? detail.title)}</strong>
                 <Badge>{t.recKind[r.kind] ?? r.kind}</Badge>
+                {r.representative && detail.recordings.length > 1 && <span title={t.representativeHint}><Badge tone="muted">{t.representative}</Badge></span>}
               </header>
               <KV rows={[
                 [t.performers, r.performers.length ? <Performers list={r.performers} /> : null],
@@ -196,6 +205,14 @@ function WorkData({ detail }: { detail: WorkDetail }) {
                   <span>{t.rel.lyricist}: <Credits list={r.override.lyricist} /> · {t.rel.composer}: <Credits list={r.override.composer} /></span>
                 ) : null],
                 [t.instrumentalOf, r.instrumentalOf ? name(detail.recordings.find((x) => x.id === r.instrumentalOf)?.title ?? detail.title) : null],
+                [t.liveRecorded, r.live ? (
+                  <span className="chips">
+                    <NodeLink k={r.live.concert} />
+                    {r.live.date && <span className="tabular muted">{r.live.date}</span>}
+                    {r.live.label && <span className="muted">{r.live.label}</span>}
+                  </span>
+                ) : null],
+                ...audioRows(t, r.audio),
                 [t.isrc, r.externalIds?.isrc ? <code>{r.externalIds.isrc}</code> : null],
                 [t.mainLink, r.mainLink ? <ExtLink href={r.mainLink}>YouTube Music</ExtLink> : null],
               ]} />
@@ -244,6 +261,21 @@ function WorkData({ detail }: { detail: WorkDetail }) {
       )}
     </>
   );
+}
+
+/**
+ * Length, key, tempo and mood of a recording (D61). An off vocal's key and tempo are its vocal
+ * recording's (`from`, the one its "instrumental of" row names), which is said next to them.
+ */
+function audioRows(t: Dict, a: RecordingDetail["audio"]): [string, ReactNode][] {
+  const note = a?.from ? <span className="muted small">{t.audioFrom}</span> : null;
+  return [
+    [t.duration, a?.dur ? <span className="tabular">{formatDuration(a.dur)}</span> : null],
+    [t.musicKey, a?.key ? <span>{keyText(a.key)} {note}</span> : null],
+    [t.bpm, a?.bpm ? <span><span className="tabular">{a.bpm}</span> {a.key ? null : note}</span> : null],
+    [t.timeSignature, a?.ts ? <span className="tabular">{a.ts}</span> : null],
+    [t.mood, a?.mood?.length ? <MoodBadges moods={a.mood} /> : null],
+  ];
 }
 
 // --- release ---------------------------------------------------------------------------------
@@ -514,6 +546,11 @@ function ConcertData({ node, detail }: { node: GNode; detail: ConcertDetail }) {
           [t.eventCode, detail.eventCode ? <code>{detail.eventCode}</code> : null],
         ]} />
       </Section>
+      {detail.cast.length > 0 && (
+        <Section title={`${t.cast} (${detail.cast.length})`} hint={t.castHint}>
+          <Performers list={detail.cast} />
+        </Section>
+      )}
       {performers.length > 0 && (
         <Section title={`${t.rel.appearance} (${performers.length})`} hint={`${t.weight}: ${t.relWeight.appearance}`}>
           <span className="chips">
@@ -551,6 +588,12 @@ function ConcertData({ node, detail }: { node: GNode; detail: ConcertDetail }) {
                       </a>
                     )}
                   </div>
+                  {open === id && p.cast && (
+                    <div className="performance-cast">
+                      <span className="muted small">{t.showCast}</span>
+                      <Performers list={p.cast} />
+                    </div>
+                  )}
                   {open === id && (
                     <ol className="setlist">
                       {p.setlist.map((item, i) => (
@@ -569,6 +612,19 @@ function ConcertData({ node, detail }: { node: GNode; detail: ConcertDetail }) {
           </article>
         ))}
       </Section>
+      {detail.liveRecordings.length > 0 && (
+        <Section title={`${t.liveRecordings} (${detail.liveRecordings.length})`} hint={t.liveRecordingsHint}>
+          <ul className="dated-list">
+            <More items={detail.liveRecordings} n={15} render={(r) => (
+              <li key={`${r.work}#${r.rec}`}>
+                <span className="date tabular">{r.date ?? "—"}</span>
+                <NodeLink k={r.work} />
+                {r.label && <span className="muted small">{r.label}</span>}
+              </li>
+            )} />
+          </ul>
+        </Section>
+      )}
     </>
   );
 }

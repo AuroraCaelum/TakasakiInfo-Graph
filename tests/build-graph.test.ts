@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { CharacterDetail, CityDetail, ConcertDetail, GEdge, PersonDetail, ReleaseDetail, VenueDetail, WorkDetail } from "../shared/graph";
 import { analyze } from "../scripts/lib/analyze";
-import { buildGraph } from "../scripts/lib/build-graph";
+import { buildGraph, youtubeId } from "../scripts/lib/build-graph";
+import { buildDays } from "../scripts/lib/days";
 import { mergePeriods } from "../scripts/lib/dates";
 import { checkFormat } from "../scripts/lib/source";
 import { fixture } from "./fixtures";
@@ -239,7 +240,7 @@ describe("buildGraph: details", () => {
     expect(w1.appearances.map((a) => a.release)).toEqual(["release:alpha/2022-r1", "release:beta/2024-r2"]);
     expect(w1.appearances[0].tracks.find((t) => t.rec === "off-vocal")?.editions).toEqual(["e1", "e2"]);
     expect(w1.performances.map((p) => p.date)).toEqual(["2021-05-01", "2021-05-02", "2025-03-01", "2025-03-01"]);
-    expect(w1.recordings[0].mainLink).toBe("https://music.youtube.com/watch?v=a");
+    expect(w1.recordings[0].mainLink).toBe("https://youtu.be/AbCdEfGhIj0");
   });
 
   it("records who sang as a character (D29)", () => {
@@ -260,6 +261,128 @@ describe("buildGraph: robustness", () => {
   it("rejects an unsupported v1 format", () => {
     expect(() => checkFormat("works", { schemaVersion: "2.0.0", dbLastUpdate: "", count: 0, data: [] })).toThrow(/not supported/);
     expect(() => checkFormat("works", { schemaVersion: "1.3.0", dbLastUpdate: "", count: 0, data: [] })).not.toThrow();
+  });
+});
+
+describe("buildGraph: length, key and tempo (D61)", () => {
+  it("puts the representative recording's values on the work node, without the inherited-from id", () => {
+    expect(built.nodes.get("work:alpha/w1")?.au).toEqual({ dur: 256, key: "F#m", bpm: 150, mood: ["upbeat", "wistful"] });
+    expect(built.nodes.get("work:alpha/w2")?.au).toEqual({ dur: 200 }); // the alt version's key is not the song's
+    expect(built.nodes.get("work:alpha/bgm1")?.au).toBeUndefined();
+    expect(built.nodes.get("work:beta/unreleased")?.au).toBeUndefined(); // representative, but nothing known
+  });
+
+  it("gives every recording its own values, and says which recording an off vocal's key and tempo are from", () => {
+    const w1 = built.details.get("work:alpha/w1") as WorkDetail;
+    expect(w1.recordings.map((r) => [r.id, r.representative ?? false, r.audio])).toEqual([
+      ["original", true, { dur: 256, key: "F#m", bpm: 150, mood: ["upbeat", "wistful"] }],
+      ["off-vocal", false, { dur: 255, key: "F#m", bpm: 150, mood: ["upbeat", "wistful"], from: "original" }],
+    ]);
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.audio).toEqual({ key: "Bb", bpm: 96, mood: ["slow", "bright"] });
+  });
+
+  it("reads recordings views older than D61 without the values", () => {
+    const ds = fixture();
+    ds.recordings = ds.recordings.map(({ id, work, main_link }) => ({ id, work, main_link }));
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual([]);
+    expect(b.nodes.get("work:alpha/w1")?.au).toBeUndefined();
+    expect((b.details.get("work:alpha/w1") as WorkDetail).recordings[0].audio).toBeUndefined();
+  });
+});
+
+describe("buildGraph: casts, live recordings and credited names", () => {
+  it("lists a concert's cast and a show's own, without adding appearance edges", () => {
+    const live = built.details.get("concert:alpha/live") as ConcertDetail;
+    expect(live.cast).toEqual([{ ref: "artist:unit-a" }, { ref: "person:actor", role: "character:alpha/c2" }]);
+    expect(live.stops[1].performances[0].cast).toEqual([{ ref: "character:alpha/c3" }]);
+    expect(live.stops[0].performances[0].cast).toBeUndefined(); // the concert's cast
+    expect(edgesOf("appearance").some((e) => e.t === "concert:alpha/live")).toBe(false);
+    expect((built.details.get("concert:beta/fes") as ConcertDetail).cast).toEqual([]);
+  });
+
+  it("links a live recording to the show it was recorded at, from both sides", () => {
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.live).toEqual({ concert: "concert:alpha/live", date: "2021-06-01" });
+    expect((built.details.get("concert:alpha/live") as ConcertDetail).liveRecordings).toEqual([
+      { work: "work:alpha/w2", rec: "alt", date: "2021-06-01" },
+    ]);
+  });
+
+  it("reports a live recording of an unknown concert and leaves the link out", () => {
+    const ds = fixture();
+    ds.works[1].recordings[1].live = { concert: "nope" };
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual(["work alpha/w2#alt: unknown reference concert:nope"]);
+    expect((b.details.get("work:alpha/w2") as WorkDetail).recordings[1].live).toBeUndefined();
+  });
+
+  it("shows a credit under the pen name or former name it prints, and makes those names searchable", () => {
+    const w2 = built.details.get("work:alpha/w2") as WorkDetail;
+    expect(w2.recordings.find((r) => r.id === "alt")?.override?.composer).toEqual([
+      { ref: "person:composer", credited: { ja: "旧名 花子", rom: "Hanako Kyumei", ko: "규메이 하나코" } },
+    ]);
+    expect(built.nodes.get("person:composer")?.al).toEqual(["旧名 花子", "Hanako Kyumei", "규메이 하나코"]);
+    expect((built.details.get("person:composer") as PersonDetail).aliases[0].names?.rom).toBe("Hanako Kyumei");
+  });
+
+  it("reports a credited name that is not one of the person's aliases, and prints it as given", () => {
+    const ds = fixture();
+    ds.works[0].credits!.lyricist = [{ person: "writer", credited_name: "謎の人" }];
+    const b = buildGraph(ds);
+    expect(b.warnings).toEqual(['work alpha/w1: credited name "謎の人" is not an alias of person writer']);
+    expect((b.details.get("work:alpha/w1") as WorkDetail).credits.lyricist[0].credited).toEqual({ ja: "謎の人" });
+  });
+});
+
+describe("days", () => {
+  const { events } = buildDays(built);
+  const on = (d: string) => events.filter((e) => e.d === d);
+
+  it("lists each show day once, with its venue, and none for an online show", () => {
+    expect(events.filter((e) => e.k === "concert").map((e) => [e.d, e.c?.[0]])).toEqual([
+      ["2021-05-01", "venue:hall-1"], ["2021-05-02", "venue:hall-1"], ["2021-06-01", "venue:hall-2"],
+      ["2025-03-01", "venue:hall-3"], ["2025-03-08", undefined],
+    ]);
+  });
+
+  it("dates a song by its first release, or by the show it was first sung at before any release", () => {
+    // w1 and w2 were sung on 2021-05-01, a year before their release: premiered together
+    expect(on("2021-05-01").find((e) => e.k === "premiere")).toEqual({
+      d: "2021-05-01", k: "premiere", s: ["work:alpha/w1", "work:alpha/w2"], c: ["concert:alpha/live"],
+    });
+    expect(events.some((e) => e.k === "work" && e.s.includes("work:alpha/w1"))).toBe(false);
+    expect(events.some((e) => e.s.includes("work:alpha/d1"))).toBe(false); // drama tracks are left out
+  });
+
+  it("puts firsts of one type together, from the node's own dated facts", () => {
+    expect(on("2021-05-01").filter((e) => e.k === "debut").map((e) => e.s)).toEqual([
+      ["character:alpha/c1"], ["person:composer", "person:writer"], ["project:alpha"],
+    ]);
+  });
+
+  it("keeps castings, later joins and departures, but not founding members", () => {
+    expect(events.filter((e) => e.k === "cast" || e.k === "join" || e.k === "leave")).toEqual([
+      { d: "2023-03-31", k: "leave", s: ["character:alpha/c2"], c: ["artist:unit-a"] },
+      { d: "2023-04-01", k: "cast", s: ["person:cv-two"], c: ["character:alpha/c1"] },
+      { d: "2023-04-01", k: "join", s: ["character:alpha/c3"], c: ["artist:unit-a"] },
+    ]);
+  });
+});
+
+describe("youtubeId", () => {
+  it("reads the video id of a YouTube or YouTube Music link, and nothing else", () => {
+    expect(youtubeId("https://youtu.be/u9gmI7wzO9E")).toBe("u9gmI7wzO9E");
+    expect(youtubeId("https://music.youtube.com/watch?v=u9gmI7wzO9E&list=x")).toBe("u9gmI7wzO9E");
+    expect(youtubeId("https://www.youtube.com/watch?feature=share&v=u9gmI7wzO9E")).toBe("u9gmI7wzO9E");
+    expect(youtubeId("https://music.youtube.com/browse/MPREb_cMR1uUqCSoA")).toBeNull();
+    expect(youtubeId("https://youtu.be/short")).toBeNull();
+  });
+
+  it("puts the representative recording's video on the work node", () => {
+    expect(built.nodes.get("work:alpha/w1")?.yt).toBe("AbCdEfGhIj0");
+    expect(built.nodes.get("work:alpha/w2")?.yt).toBeUndefined();
   });
 });
 

@@ -1,11 +1,13 @@
 import type { Detail, GNode } from "../../../shared/graph";
 import type { Names } from "../../../shared/v1";
 import { useModel, useT } from "../../context";
+import { formatDuration, keyText } from "../../lib/audio";
 import { formatBirthday, useBirthdaysToday } from "../../lib/birthday";
 import { fandomUrl } from "../../lib/links";
-import { namePartText, nameOrder } from "../../lib/names";
+import { nameOf, namePartText, nameOrder } from "../../lib/names";
 import { useApp } from "../../store";
-import { Aliases, Badge, BirthdayBadge, EvidenceList, ExtLink, KV, NodeLink, Section, shortUrl } from "../common";
+import { SongVideo } from "./SongVideo";
+import { Aliases, Badge, BirthdayBadge, EvidenceList, ExtLink, KV, MoodBadges, NodeLink, Section, shortUrl } from "../common";
 
 const LANG_LABEL: Record<keyof Names, string> = { ja: "ja", kana: "kana", rom: "rom", ko: "ko" };
 
@@ -42,6 +44,7 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
   const model = useModel();
   const set = useApp((s) => s.set);
   const uiLang = useApp((s) => s.uiLang);
+  const nameLang = useApp((s) => s.nameLang);
   const birthdays = useBirthdaysToday();
   const community = model.communities[node.m.cm];
   const links = linksOf(detail);
@@ -49,6 +52,8 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
 
   return (
     <>
+      {/* a work's video, never started by itself: moving from song to song cues the next one in the same player */}
+      {node.t === "work" && node.yt && <SongVideo videoId={node.yt} title={nameOf(node.n, nameLang, node.k)} />}
       <Section title={t.names}>
         <NamesTable names={node.n} />
         {parts && (parts.familyName || parts.givenName) && (
@@ -71,6 +76,12 @@ export function OverviewTab({ node, detail }: { node: GNode; detail?: Detail }) 
             </span>
           ) : null],
           [t.firstSeen, node.d ? <span className="tabular">{node.d}</span> : <span className="muted">{t.undated}</span>],
+          // a work's length, key and tempo: its representative recording's (D61)
+          [t.duration, node.au?.dur ? <span className="tabular">{formatDuration(node.au.dur)}</span> : null],
+          [t.musicKey, node.au?.key ? keyText(node.au.key) : null],
+          [t.bpm, node.au?.bpm ? <span className="tabular">{node.au.bpm}</span> : null],
+          [t.timeSignature, node.au?.ts ? <span className="tabular">{node.au.ts}</span> : null],
+          [t.mood, node.au?.mood?.length ? <MoodBadges moods={node.au.mood} /> : null],
           [t.statusLabel, node.st ? <Badge>{t.status[node.st] ?? node.st}</Badge> : null],
           [t.projects, node.t !== "project" && node.p.length ? (
             <span className="chips">{node.p.map((id) => <NodeLink key={id} k={`project:${id}`} />)}</span>

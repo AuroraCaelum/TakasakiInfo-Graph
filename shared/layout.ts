@@ -46,6 +46,11 @@ export const FA2_DEFAULTS: Fa2Options = {
   edgeWeightInfluence: 1,
 };
 
+/** Whether `o` holds the default forces: those the build drew the precomputed map with. */
+export function isDefaultFa2(o: Fa2Options): boolean {
+  return (Object.keys(FA2_DEFAULTS) as (keyof Fa2Options)[]).every((k) => o[k] === FA2_DEFAULTS[k]);
+}
+
 export function fa2Settings(order: number, o: Fa2Options = FA2_DEFAULTS) {
   return {
     barnesHutOptimize: o.approximate,

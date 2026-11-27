@@ -7,6 +7,7 @@ import type { NodeDisplayData, EdgeDisplayData } from "sigma/types";
 import { animateNodes } from "sigma/utils";
 
 import type { GNode } from "../../shared/graph";
+import { isDefaultFa2 } from "../../shared/layout";
 import { useModel, usePalette, useT } from "../context";
 import { Icon } from "../icons";
 import type { PathResult } from "../lib/analysis";
@@ -15,7 +16,7 @@ import { classOf, colorOf } from "../lib/classes";
 import { focusLayout } from "../lib/focus-layout";
 import { runLayout, type Point } from "../lib/layouts";
 import { nameOf } from "../lib/names";
-import { computeVisible, type Visible } from "../lib/visibility";
+import { computeVisible, sameVisible, type Visible } from "../lib/visibility";
 import type { EdgeAttrs, NodeAttrs } from "../model";
 import { useApp, useFilters } from "../store";
 import { LayoutSettingsPanel } from "../ui/LayoutSettings";
@@ -39,6 +40,8 @@ interface RenderState {
   edges: Set<string> | null;
   /** persons and characters whose birthday is today: they wear a party hat */
   birthdays: string[];
+  /** the highlight is a drop-down's spotlight: its nodes are labelled and drawn larger */
+  spot: boolean;
 }
 
 type Tip = { kind: "node"; key: string; x: number; y: number } | { kind: "edge"; key: string; x: number; y: number };
@@ -83,12 +86,10 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const selected = useApp((s) => s.selected);
   const focus = useApp((s) => s.focus);
   const legendHover = useApp((s) => s.legendHover);
-  const layout = useApp((s) => s.layout);
+  const spotlight = useApp((s) => s.spotlight);
+  /** ForceAtlas2's options: a change to them runs it again */
   const fa2 = useApp((s) => s.fa2);
-  const noverlap = useApp((s) => s.noverlap);
   const birthdaysToday = useBirthdaysToday();
-  /** the options of the layout in use: a change to them runs it again */
-  const options = layout === "fa2" ? fa2 : layout === "noverlap" ? noverlap : null;
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [running, setRunning] = useState(false);
   const [rerun, setRerun] = useState(0);
@@ -107,9 +108,16 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
   const laidOut = useMemo(() => computeVisible(model, { ...filters, selected: null, focus: 0 }), [model, filters]);
   /** the inputs of the last run that finished (settled, or stopped by the viewer) */
   const finished = useRef<unknown[] | null>(null);
+  /**
+   * The precomputed map is the build's ForceAtlas2 run with the default forces, so it stands
+   * in for a live one: ForceAtlas2 shows it as is until the filters change from those the page
+   * opened with, or the forces from the defaults, or the viewer presses run.
+   */
+  const openedWith = useRef(laidOut);
+  const rerunSeen = useRef(rerun);
 
   const state = useRef<RenderState>({
-    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [],
+    visible, palette, nameLang, colorBy, selected, active: null, hovered: null, nodes: null, edges: null, birthdays: [], spot: false,
   });
 
   // --- sigma instance ------------------------------------------------------------------------
@@ -194,7 +202,8 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
           res.color = colorOf(n, s.colorBy, s.palette);
           res.pictoColor = s.colorBy === "type" ? s.palette.picto[n.t] : "#ffffff";
           res.zIndex = s.nodes ? 2 : n.t === "project" ? 1 : 0;
-          if (n.t === "project" || (s.nodes && s.nodes.size <= 12)) res.forceLabel = true;
+          if (n.t === "project" || (s.nodes && s.nodes.size <= (s.spot ? 40 : 12))) res.forceLabel = true;
+          if (s.spot) res.size = data.size * 1.4 + 1.5;
         } else {
           res.color = s.palette.dim;
           res.pictoColor = s.palette.dim;
@@ -324,6 +333,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     s.hovered = hovered;
     s.nodes = null;
     s.edges = null;
+    s.spot = false;
     s.birthdays = model.list.filter((n) => n.bd && birthdaysToday.has(n.bd)).map((n) => n.k);
     const around = (k: string) => {
       const nodes = new Set([k]);
@@ -342,6 +352,18 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       ({ nodes: s.nodes, edges: s.edges } = around(s.selected));
     } else if (hovered && visible.nodes.has(hovered)) {
       ({ nodes: s.nodes, edges: s.edges } = around(hovered));
+    } else if (spotlight?.some((k) => visible.nodes.has(k))) {
+      // a drop-down's nodes (this day's, the song playing) and the links among them
+      const nodes = new Set(spotlight.filter((k) => visible.nodes.has(k)));
+      const edges = new Set<string>();
+      for (const k of nodes) {
+        model.graph.forEachEdge(k, (e, _a, a, b) => {
+          if (visible.edges.has(e) && nodes.has(a === k ? b : a)) edges.add(e);
+        });
+      }
+      s.nodes = nodes;
+      s.edges = edges;
+      s.spot = true;
     } else if (legendHover) {
       s.nodes = new Set([...visible.nodes].filter((k) => classOf(model.nodes.get(k)!, colorBy) === legendHover));
       s.edges = new Set();
@@ -350,7 +372,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     // label, so the label grid only has to place the highlighted ones without overlap)
     sigmaRef.current?.setSetting("labelRenderedSizeThreshold", s.nodes ? 0 : 8);
     sigmaRef.current?.refresh();
-  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, path, birthdaysToday]);
+  }, [model, visible, palette, nameLang, colorBy, selected, active, hovered, legendHover, spotlight, path, birthdaysToday]);
 
   // --- camera: fly to a node selected outside the graph ----------------------------------------
   useEffect(() => {
@@ -410,22 +432,17 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     // `visible` matters only while focused: a filter change re-lays the neighbourhood out
   }, [focusKey, focusKey ? visible : null, model]);
 
-  // --- node layout: the precomputed map, or a live run over the visible nodes ------------------
+  // --- node layout: the precomputed map, then a live ForceAtlas2 over the visible nodes --------
   // (the focus view owns the positions while it is open; a live layout resumes after it)
   const focused = !!focusKey;
   useEffect(() => {
     const graph = model.graph;
-    if (layout === "preset") {
-      if (!rest.current.size) return;
-      rest.current.clear();
-      if (focused) return; // leaving the focus view animates to the precomputed map
-      const targets: Record<string, { x: number; y: number }> = {};
-      for (const n of model.list) targets[n.k] = { x: n.x, y: n.y };
-      return animateNodes(graph, targets, { duration: 600, easing: "quadraticInOut" });
-    }
     if (focused) return;
+    const pressed = rerun !== rerunSeen.current;
+    rerunSeen.current = rerun;
+    if (!rest.current.size && sameVisible(laidOut, openedWith.current) && isDefaultFa2(fa2) && !pressed) return;
     // leaving the focus view resumes a run it cut short, but does not start a finished one over
-    const inputs = [layout, laidOut, model, rerun, options];
+    const inputs = [laidOut, model, rerun, fa2];
     if (finished.current?.every((x, i) => x === inputs[i])) return;
     finished.current = null;
     let stop: (() => void) | null = null;
@@ -441,15 +458,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     };
     // a short wait also merges a burst of filter changes (the time slider playing) into one run
     const id = setTimeout(() => {
-      const sigma = sigmaRef.current;
-      // the view the run is sized for (Noverlap spaces nodes for the zoom it starts at)
-      const o = sigma?.viewportToGraph({ x: 0, y: 0 }) ?? { x: 0, y: 0 };
-      const e = sigma?.viewportToGraph({ x: 100, y: 0 }) ?? { x: 100, y: 0 };
-      const view = {
-        unitsPerPx: Math.hypot(e.x - o.x, e.y - o.y) / 100,
-        radiusPx: (k: string) => sigma?.scaleSize(graph.getNodeAttribute(k, "size")) ?? graph.getNodeAttribute(k, "size"),
-      };
-      stop = runLayout(layout, model, laidOut, (k) => graph.getNodeAttributes(k), { fa2, noverlap, view }, (pos) => {
+      stop = runLayout(model, laidOut, (k) => graph.getNodeAttributes(k), fa2, (pos) => {
         for (const [k, p] of pos) rest.current.set(k, p);
         graph.updateEachNodeAttributes((k, a) => {
           const p = pos.get(k);
@@ -463,11 +472,11 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
     return () => { clearTimeout(id); end(); };
     // A changed filter or option starts over from where the nodes are, so the picture moves on
     // smoothly.
-  }, [layout, focused, laidOut, model, rerun, options]);
+  }, [focused, laidOut, model, rerun, fa2]);
 
   const cam = () => sigmaRef.current?.getCamera();
   // a live layout settles and stops by itself; this stops it early or runs it again
-  const liveButton = (className: string) => layout !== "preset" && (
+  const liveButton = (className: string) => (
     <button
       type="button" className={className} disabled={focused} aria-pressed={running}
       title={running ? t.layoutStop : t.layoutRun} aria-label={running ? t.layoutStop : t.layoutRun}
@@ -496,14 +505,12 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
       ) : (
         <div className="zoom-controls" role="group">
           {liveButton(`icon-btn layout-run${running ? " on" : ""}`)}
-          {layout !== "preset" && (
-            <button
-              type="button" className={`icon-btn layout-sep${settingsOpen ? " on" : ""}`} aria-expanded={settingsOpen}
-              title={t.layoutSettings[layout]} aria-label={t.layoutSettings[layout]} onClick={() => setSettingsOpen(!settingsOpen)}
-            >
-              <Icon name="sliders" />
-            </button>
-          )}
+          <button
+            type="button" className={`icon-btn layout-sep${settingsOpen ? " on" : ""}`} aria-expanded={settingsOpen}
+            title={t.layoutSettings} aria-label={t.layoutSettings} onClick={() => setSettingsOpen(!settingsOpen)}
+          >
+            <Icon name="sliders" />
+          </button>
           <button type="button" className="icon-btn" title={t.zoomIn} aria-label={t.zoomIn} onClick={() => cam()?.animatedZoom({ duration: 250 })}>
             <Icon name="plus" />
           </button>
@@ -515,7 +522,7 @@ export function GraphView({ visible, path, compact = false, active = null, onNod
           </button>
         </div>
       )}
-      {!compact && layout !== "preset" && settingsOpen && <LayoutSettingsPanel layout={layout} onClose={() => setSettingsOpen(false)} />}
+      {!compact && settingsOpen && <LayoutSettingsPanel onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

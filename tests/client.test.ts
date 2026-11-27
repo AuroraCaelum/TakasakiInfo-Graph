@@ -6,16 +6,20 @@ import { buildGraph } from "../scripts/lib/build-graph";
 import { personalizedPageRank, shortestPath, similarNodes } from "../src/lib/analysis";
 import forceAtlas2 from "graphology-layout-forceatlas2";
 import { FA2_DEFAULTS, fa2Settings } from "../shared/layout";
-import noverlap from "graphology-layout-noverlap";
-import { fitInto, layoutGraph, noverlapGraph } from "../src/lib/layouts";
+import { fitInto, layoutGraph } from "../src/lib/layouts";
+import { audioPasses, audioSummary, formatDuration, keyText, parseBpm } from "../src/lib/audio";
 import { birthdaysOn, formatBirthday, localDate } from "../src/lib/birthday";
+import { buildDays } from "../scripts/lib/days";
+import { countsByDay, eventsOn, finalConsonant, parseTemplate, particle, shiftDate } from "../src/lib/days";
 import { fandomTab, fandomUrl } from "../src/lib/links";
+import { issueUrl, nodePageUrl } from "../src/lib/report";
+import { DICTS } from "../src/i18n";
 import { namePartText, otherNames } from "../src/lib/names";
 import { buildSearchIndex, normalize, search } from "../src/lib/search";
 import { fromQuery, toQuery } from "../src/lib/url";
-import { computeVisible, type VisibilityInput } from "../src/lib/visibility";
+import { computeVisible, sameVisible, type VisibilityInput } from "../src/lib/visibility";
 import { buildModel } from "../src/model";
-import { cloneFilters, NOVERLAP_DEFAULTS, type ViewState } from "../src/view";
+import { cloneFilters, type ViewState } from "../src/view";
 import { fixture } from "./fixtures";
 
 const built = buildGraph(fixture());
@@ -71,6 +75,52 @@ describe("visibility", () => {
     expect(v.nodes.has("work:alpha/w1")).toBe(false);
     expect(v.nodes.has("release:beta/2024-r2")).toBe(true);
   });
+
+  it("tells the same picture from another one by content, not by identity", () => {
+    expect(sameVisible(computeVisible(model, view()), computeVisible(model, view()))).toBe(true);
+    expect(sameVisible(computeVisible(model, view()), computeVisible(model, view({ drama: true })))).toBe(false);
+    // a selected node the filters leave out joins the picture
+    expect(sameVisible(computeVisible(model, view()), computeVisible(model, view({ selected: "work:alpha/d1" })))).toBe(false);
+  });
+});
+
+describe("mood and tempo", () => {
+  it("writes length, key and tempo the way people read them", () => {
+    expect(formatDuration(256)).toBe("4:16");
+    expect(formatDuration(65)).toBe("1:05");
+    expect(formatDuration(3723)).toBe("1:02:03");
+    expect([keyText("F#m"), keyText("Bb"), keyText("C"), keyText("Ebm")]).toEqual(["F♯m", "B♭", "C", "E♭m"]);
+    expect(audioSummary({ dur: 256, key: "F#m", bpm: 150 })).toBe("4:16 · F♯m · 150 BPM");
+    expect(audioSummary({ dur: 200 })).toBe("3:20");
+    expect(audioSummary(undefined)).toBe("");
+  });
+
+  it("takes a BPM bound only as a whole number in range", () => {
+    expect([parseBpm("140"), parseBpm(" 90 "), parseBpm("0"), parseBpm("401"), parseBpm("12.5"), parseBpm("")]).toEqual([140, 90, null, null, null, null]);
+  });
+
+  it("filters works by mood: any label within an axis, every axis chosen", () => {
+    const w1 = model.nodes.get("work:alpha/w1")!; // upbeat, wistful, 150
+    const pass = (moods: string[], bpm: [number | null, number | null] = [null, null]) => audioPasses(w1, { moods, bpm });
+    expect(pass([])).toBe(true);
+    expect(pass(["upbeat"])).toBe(true);
+    expect(pass(["slow"])).toBe(false);
+    expect(pass(["upbeat", "slow"])).toBe(true); // tempo: either
+    expect(pass(["upbeat", "bright"])).toBe(false); // tempo and key: both
+    expect(pass(["upbeat", "wistful"])).toBe(true);
+    expect(pass([], [140, 160])).toBe(true);
+    expect(pass([], [151, null])).toBe(false);
+    expect(pass([], [null, 150])).toBe(true);
+  });
+
+  it("hides works without the values once the filter is on, and leaves other nodes and the selection alone", () => {
+    const on = computeVisible(model, view({ moods: ["wistful"] }));
+    expect(on.nodes.has("work:alpha/w1")).toBe(true);
+    expect(on.nodes.has("work:alpha/w2")).toBe(false); // length only
+    expect(on.nodes.has("work:alpha/bgm1")).toBe(false);
+    expect(on.nodes.has("person:writer")).toBe(true);
+    expect(computeVisible(model, view({ bpm: [100, null], selected: "work:alpha/w2" })).nodes.has("work:alpha/w2")).toBe(true);
+  });
 });
 
 describe("analysis", () => {
@@ -124,6 +174,15 @@ describe("search", () => {
   it("tolerates a typo in latin queries", () => {
     expect(search(index, "sakkyuku")[0]?.k).toBe("person:composer");
   });
+  it("finds names made only of punctuation", () => {
+    const marks = buildSearchIndex([
+      { ...model.list[0], k: "work:x/q", n: { ja: "？？？", rom: "???" } },
+      { ...model.list[0], k: "work:x/e", n: { ja: "！！！！" } },
+    ]);
+    expect(search(marks, "???").map((n) => n.k)).toEqual(["work:x/q"]);
+    expect(search(marks, "？？").map((n) => n.k)).toEqual(["work:x/q"]);
+    expect(search(marks, "!!!!")[0]?.k).toBe("work:x/e");
+  });
 });
 
 describe("url", () => {
@@ -137,12 +196,14 @@ describe("url", () => {
     const s: ViewState = {
       ...base, selected: "work:alpha/w1", tab: "related", focus: 2, colorBy: "community", projects: ["alpha"],
       drama: true, bgm: false, time: "2023-01-01", relations: { ...base.relations, project: false, co_credit: true },
-      types: { ...base.types, venue: false },
+      types: { ...base.types, venue: false }, moods: ["upbeat", "wistful"], bpm: [120, null],
     };
     const q = toQuery(s, base);
     expect(q).toContain("n=work:alpha/w1");
     expect(q).toContain("r=-project,co_credit");
     expect(q).toContain("bgm=0");
+    expect(q).toContain("mood=upbeat,wistful");
+    expect(q).toContain("bpm=120-");
     expect(fromQuery(q, base, isNode)).toEqual(s);
     expect(toQuery(base, base)).toBe("");
   });
@@ -157,6 +218,10 @@ describe("url", () => {
     expect(fromQuery("?ui=en&names=ko", base, isNode).nameLang).toBe("ko");
     expect(toQuery({ ...base, uiLang: "en", nameLang: "rom" }, base)).toBe("?ui=en");
     expect(toQuery({ ...base, uiLang: "en", nameLang: "ko" }, base)).toBe("?ui=en&names=ko");
+    const m = fromQuery("?mood=sad,slow&bpm=180-90", base, isNode);
+    expect([m.moods, m.bpm]).toEqual([["slow"], [90, 180]]); // unknown labels dropped, bounds put in order
+    expect(fromQuery("?bpm=fast", base, isNode).bpm).toEqual([null, null]);
+    expect(fromQuery("?bpm=-0", base, isNode).bpm).toEqual([null, null]);
   });
 });
 
@@ -190,26 +255,6 @@ describe("live layout", () => {
     expect(() => forceAtlas2.assign(g, { iterations: 2, settings: flipped })).not.toThrow();
     expect(fa2Settings(100, FA2_DEFAULTS)).toEqual(fa2Settings(100));
     expect(fa2Settings(100)).toMatchObject({ gravity: 0.05, scalingRatio: 6, strongGravityMode: true, linLogMode: false });
-  });
-
-  it("sizes Noverlap's nodes as drawn at the zoom it runs at, and spaces them apart", () => {
-    // every node stacked on one spot, drawn 4 px wide at 0.5 map units per pixel
-    const options = { fa2: FA2_DEFAULTS, noverlap: { ...NOVERLAP_DEFAULTS, ratio: 1.5 }, view: { unitsPerPx: 0.5, radiusPx: () => 4 } };
-    const g = noverlapGraph(v, () => ({ x: 0, y: 0 }), options);
-    expect(g.order).toBe(v.nodes.size);
-    expect(g.size).toBe(0);
-    g.forEachNode((_k, a) => expect(a.size).toBeCloseTo(4 * 0.5 * 1.5));
-    // the spacing the worker applies clears most overlaps (where nodes crowd, a few jostle on)
-    g.forEachNode((k, a) => { a.x = k.length; a.y = k.charCodeAt(k.length - 1) % 7; }); // a few crowded spots
-    const overlapping = () => {
-      const ns = g.mapNodes((_k, a) => a);
-      let n = 0;
-      for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) if (Math.hypot(ns[i].x - ns[j].x, ns[i].y - ns[j].y) < ns[i].size + ns[j].size) n++;
-      return n;
-    };
-    const before = overlapping();
-    noverlap.assign(g, { maxIterations: 300, settings: { margin: 0, ratio: 1 } });
-    expect(overlapping()).toBeLessThan(before * 0.2);
   });
 
   it("fits a frame back where the nodes started: unchanged positions stay put", () => {
@@ -267,5 +312,94 @@ describe("birthdays", () => {
     expect(formatBirthday("05-31", "ko")).toBe("5월 31일");
     expect(formatBirthday("05-31", "en")).toBe("May 31");
     expect(formatBirthday("02-29", "ja")).toBe("2月29日");
+  });
+});
+
+describe("this day in Love Live!", () => {
+  const { events } = buildDays(built);
+  const all = { has: () => true };
+  const sameName = () => false;
+
+  it("finds the month and day in every year, birthdays first, with the years since", () => {
+    const items = eventsOn("2026-05-01", "2026-05-01", events, model.nodes, all, sameName);
+    expect(items.map((i) => [i.section, i.template, i.s.join(), i.years])).toEqual([
+      ["concert", "concert", "concert:alpha/live", 5],
+      ["work", "premiere", "work:alpha/w1,work:alpha/w2", 5],
+      ["debut", "debutCharacter", "character:alpha/c1", 5],
+      ["debut", "debutPerson", "person:composer,person:writer", 5],
+      ["debut", "debutProject", "project:alpha", 5],
+    ]);
+    expect(eventsOn("2026-08-01", "2026-05-01", events, model.nodes, all, sameName).map((i) => [i.section, i.s[0]]))
+      .toEqual([["birthday", "character:alpha/c2"]]);
+  });
+
+  it("marks what is still to come, and reads an online show apart", () => {
+    const items = eventsOn("2025-03-08", "2025-03-01", events, model.nodes, all, sameName);
+    expect(items.map((i) => [i.template, i.future, i.years])).toEqual([["concertOnline", true, 0]]);
+  });
+
+  it("drops the subjects the filters hide, and an event left with none", () => {
+    const visible = { has: (k: string) => k !== "person:writer" && k !== "project:alpha" };
+    const items = eventsOn("2026-05-01", "2026-05-01", events, model.nodes, visible, sameName);
+    expect(items.filter((i) => i.section === "debut").map((i) => i.s)).toEqual([["character:alpha/c1"], ["person:composer"]]);
+  });
+
+  it("chooses Korean particles by the final sound, both forms when it can't tell", () => {
+    expect(finalConsonant("러브 라이브!")).toBe(false);
+    expect(finalConsonant("도쿄 돔")).toBe(true);
+    expect(finalConsonant("Dream")).toBe(true);
+    expect(finalConsonant("Sunshine!!")).toBe(false);
+    expect(finalConsonant("Song")).toBe(true);
+    expect(finalConsonant("17")).toBe(true);
+    expect(finalConsonant("μ's")).toBe(false);
+    expect(particle("무지개색☆뤼미에르", "이/가")).toBe("가");
+    expect(particle("코즈에", "이/가")).toBe("가");
+    expect(particle("호노카 외 3개", "이/가")).toBe("가");
+    expect(particle("夢", "이/가")).toBe("이(가)");
+    expect(particle("서울", "으로/로")).toBe("로");
+    expect(particle("도쿄 돔", "으로/로")).toBe("으로");
+  });
+
+  it("splits a template into text, slots and particles", () => {
+    expect(parseTemplate("{w}, {s}{이/가} 발매됐어요.")).toEqual([
+      { kind: "slot", slot: "w" }, { kind: "text", text: ", " }, { kind: "slot", slot: "s" },
+      { kind: "particle", pair: "이/가" }, { kind: "text", text: " 발매됐어요." },
+    ]);
+  });
+
+  it("counts each day's items for the calendar, with the filters as they are", () => {
+    const counts = countsByDay(events, model.nodes, all);
+    expect(counts.get("05-01")).toBe(eventsOn("2026-05-01", "2026-05-01", events, model.nodes, all, sameName).length);
+    expect(counts.get("08-01")).toBe(1); // a birthday
+    expect(countsByDay(events, model.nodes, { has: (k: string) => k !== "character:alpha/c2" }).get("08-01")).toBeUndefined();
+  });
+
+  it("moves a date by days across months and years", () => {
+    expect(shiftDate("2026-12-31", 1)).toBe("2027-01-01");
+    expect(shiftDate("2024-03-01", -1)).toBe("2024-02-29");
+  });
+});
+
+describe("error reports", () => {
+  it("links back to the node with only it selected", () => {
+    expect(nodePageUrl({ origin: "https://x.github.io", pathname: "/graph/" }, "work:alpha/w1"))
+      .toBe("https://x.github.io/graph/?n=work:alpha/w1");
+  });
+
+  it("opens a new issue on the data repository, filled in with the node", () => {
+    const node = model.nodes.get("work:alpha/w1")!;
+    const url = new URL(issueUrl({
+      node, name: "W1", type: "곡", sub: null, projects: ["알파"], tab: "개요", page: "https://x/?n=work:alpha/w1",
+      meta: { ...model.meta, dbLastUpdate: "2026-11-27T05:51:59Z", sha: "5cfa74f5be01" }, ui: "ko", t: DICTS.ko,
+    }));
+    expect(url.origin + url.pathname).toBe("https://github.com/AuroraCaelum/TakasakiInfo/issues/new");
+    expect(url.searchParams.get("title")).toBe("[오류 제보] 곡 · W1");
+    expect(url.searchParams.get("labels")).toBe("bug");
+    const body = url.searchParams.get("body")!;
+    expect(body).toContain("- 키: `work:alpha/w1`");
+    expect(body).toContain("- 프로젝트: 알파");
+    expect(body).toContain("- 페이지: https://x/?n=work:alpha/w1");
+    expect(body).toContain("- 데이터 버전: 2026-11-27T05:51:59Z (5cfa74f)");
+    expect(body).toContain("### 어떤 점이 잘못됐나요?");
   });
 });

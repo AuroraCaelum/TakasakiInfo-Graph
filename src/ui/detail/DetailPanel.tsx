@@ -8,6 +8,7 @@ import { nodePasses } from "../../lib/visibility";
 import { useApp } from "../../store";
 import type { Tab } from "../../view";
 import { Badge, BirthdayBadge } from "../common";
+import { ReportLink } from "../ReportLink";
 import { subtypeLabel } from "../labels";
 import { DataTab } from "./DataTab";
 import { NeighborsTab } from "./Neighbors";
@@ -93,6 +94,9 @@ export function DetailPanel() {
         {s.tab === "neighbors" && <NeighborsTab node={node} />}
         {s.tab === "related" && <RelatedTab node={node} />}
       </div>
+      <footer className="detail-foot">
+        <ReportLink node={node} />
+      </footer>
     </aside>
   );
 }

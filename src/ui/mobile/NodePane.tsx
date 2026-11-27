@@ -13,6 +13,7 @@ import { RelatedTab } from "../detail/Related";
 import { subtypeLabel } from "../labels";
 import { useLegendEntries } from "../Legend";
 import { Segmented, TypeDot } from "./parts";
+import { ReportLink } from "../ReportLink";
 
 const DEPTHS = [1, 2, 3] as const;
 
@@ -71,6 +72,9 @@ export function NodePane({ onPath, onCopied }: { onPath: () => void; onCopied: (
         {s.tab === "data" && (detail ? <DataTab node={node} detail={detail} /> : !error && <p className="muted">{t.loading}</p>)}
         {s.tab === "neighbors" && <NeighborsTab node={node} />}
         {s.tab === "related" && <RelatedTab node={node} />}
+        <div className="m-report">
+          <ReportLink node={node} />
+        </div>
       </div>
     </article>
   );

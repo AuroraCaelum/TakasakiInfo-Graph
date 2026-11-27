@@ -6,6 +6,7 @@
 import type { GEdge, GNode } from "../../shared/graph";
 import type { Model } from "../model";
 import type { Filters } from "../view";
+import { audioPasses } from "./audio";
 
 export interface VisibilityInput extends Filters {
   time: string | null;
@@ -24,6 +25,7 @@ export function nodePasses(n: GNode, f: VisibilityInput): boolean {
   if (n.t === "work" && n.s === "bgm" && !f.bgm) return false;
   if (f.projects && n.p.length && !n.p.some((p) => f.projects!.includes(p))) return false;
   if (f.time && n.d && n.d > f.time) return false;
+  if (!audioPasses(n, f)) return false;
   return true;
 }
 
@@ -83,4 +85,10 @@ export function computeVisible(model: Model, f: VisibilityInput): Visible {
     }));
   }
   return { nodes, edges };
+}
+
+/** Whether `a` and `b` show the same nodes and edges. */
+export function sameVisible(a: Visible, b: Visible): boolean {
+  const same = (x: Set<string>, y: Set<string>) => x.size === y.size && [...x].every((k) => y.has(k));
+  return a === b || (same(a.nodes, b.nodes) && same(a.edges, b.edges));
 }

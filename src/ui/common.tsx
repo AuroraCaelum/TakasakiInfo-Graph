@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 import type { Period, PersonDetail } from "../../shared/graph";
 import type { Evidence, EvidenceMap } from "../../shared/v1";
@@ -7,8 +7,11 @@ import { Icon, TypeIcon } from "../icons";
 import { nameOf, otherNames } from "../lib/names";
 import { useApp } from "../store";
 
-/** A node reference: icon, name in the current script; selects the node. */
-export function NodeLink({ k, children, plain }: { k: string; children?: ReactNode; plain?: boolean }) {
+/**
+ * A node reference: icon, name in the current script; selects the node. `label` replaces the
+ * name (a credit printed under a pen name), and `title` the hover text.
+ */
+export function NodeLink({ k, children, plain, label, title }: { k: string; children?: ReactNode; plain?: boolean; label?: string; title?: string }) {
   const node = useNode(k);
   const t = useT();
   const p = usePalette();
@@ -20,10 +23,10 @@ export function NodeLink({ k, children, plain }: { k: string; children?: ReactNo
   return (
     <button
       type="button" className={plain ? "node-link plain" : "node-link"} onClick={() => select(k)}
-      title={`${t.types[node.t]}${other ? ` · ${other}` : ""}`}
+      title={title ?? `${t.types[node.t]}${other ? ` · ${other}` : ""}`}
     >
       <TypeIcon type={node.t} sub={node.s} size={14} style={{ color: p.type[node.t] }} />
-      <span className="node-link-name">{nameOf(node.n, lang, k)}</span>
+      <span className="node-link-name">{label ?? nameOf(node.n, lang, k)}</span>
       {children}
     </button>
   );
@@ -120,16 +123,28 @@ function EvidenceRow({ field, ev }: { field: string; ev: Evidence }) {
   );
 }
 
-/** A person's aliases: kind and note, misprints left out (they stay searchable). */
+/** Mood labels of a recording (D61), in the UI language. */
+export function MoodBadges({ moods }: { moods?: string[] }) {
+  const t = useT();
+  if (!moods?.length) return null;
+  return <span className="chips">{moods.map((m) => <Badge key={m}>{t.moods[m] ?? m}</Badge>)}</span>;
+}
+
+/**
+ * A person's aliases: kind and note, misprints left out (they stay searchable). A pen name or
+ * former name with names of its own is shown in the current script, its printed form beside it.
+ */
 export function Aliases({ list }: { list: PersonDetail["aliases"] }) {
   const t = useT();
+  const lang = useApp((s) => s.nameLang);
   const shown = list.filter((a) => a.kind !== "misprint");
   if (!shown.length) return null;
   return (
     <span className="alias-list">
       {shown.map((a, i) => (
         <span key={i} className="alias">
-          <span>{a.text}</span>
+          <span>{a.names ? nameOf(a.names, lang, a.text) : a.text}</span>
+          {a.names && nameOf(a.names, lang, a.text) !== a.text && <span className="muted">{a.text}</span>}
           <Badge tone="muted">{t.aliasKind[a.kind] ?? a.kind}</Badge>
           {a.note && <span className="muted small">{a.note}</span>}
         </span>
@@ -165,8 +180,44 @@ export function More<T>({ items, n = 12, render }: { items: T[]; n?: number; ren
   );
 }
 
+/** A node's name in the current script, by key. */
+export function useNodeName(): (k: string) => string {
+  const model = useModel();
+  const lang = useApp((s) => s.nameLang);
+  return (k) => nameOf(model.nodes.get(k)?.n, lang, k);
+}
+
 export function useProjectName(): (id: string) => string {
   const model = useModel();
   const lang = useApp((s) => s.nameLang);
   return (id) => nameOf(model.nodes.get(`project:${id}`)?.n, lang, id);
+}
+
+/**
+ * An ⓘ beside a heading for a note too long to print under it. The note shows on hover and
+ * focus, and a tap keeps it open (phones) until the next tap elsewhere; it drops below the
+ * heading, as wide as it.
+ */
+export function InfoTip({ text }: { text: string }) {
+  const t = useT();
+  const id = useId();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [open]);
+  return (
+    <span ref={ref} className={`info-tip${open ? " open" : ""}`}>
+      <button
+        type="button" className="info-tip-btn" aria-label={t.moreInfo} aria-describedby={id} aria-expanded={open}
+        onClick={() => setOpen(!open)} onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
+      >
+        <Icon name="info" size={14} />
+      </button>
+      <span role="tooltip" id={id} className="info-tip-pop">{text}</span>
+    </span>
+  );
 }

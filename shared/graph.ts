@@ -59,6 +59,27 @@ export type ArrangerRole = (typeof ARRANGER_ROLES)[number];
 export type DerivedRelation = (typeof DERIVED_RELATIONS)[number];
 export type Relation = FactRelation | DerivedRelation;
 
+/**
+ * Mood labels of a recording, made by TakasakiInfo from its key and tempo (D61), on two axes:
+ * tempo (`upbeat` bpm ≥ 140, `slow` bpm < 100) and key (`bright` major, `wistful` minor).
+ */
+export const TEMPO_MOODS = ["upbeat", "slow"] as const;
+export const KEY_MOODS = ["bright", "wistful"] as const;
+export const MOODS = [...TEMPO_MOODS, ...KEY_MOODS] as const;
+export type Mood = (typeof MOODS)[number];
+
+/** Length, key and tempo of a recording (D61). */
+export interface AudioFacts {
+  /** seconds */
+  dur?: number;
+  /** `F#m`, `Bb` */
+  key?: string;
+  bpm?: number;
+  /** time signature (`4/4`), only where a source states it */
+  ts?: string;
+  mood?: string[];
+}
+
 export const isDerived = (r: Relation): r is DerivedRelation => (DERIVED_RELATIONS as readonly string[]).includes(r);
 
 /** An inclusive period; `null` is open-ended. */
@@ -97,6 +118,10 @@ export interface GNode {
   ext?: true;
   /** persons and characters: birthday as `MM-DD`, to mark the node on the day */
   bd?: string;
+  /** works: length, key and tempo of the representative recording (D61) */
+  au?: AudioFacts;
+  /** works: YouTube video id of the representative recording's main link (else a vocal recording's), for the player */
+  yt?: string;
   x: number;
   y: number;
   m: Metrics;
@@ -153,6 +178,8 @@ export interface CreditRef {
   /** ja prints the affiliation in full-width brackets, `名前（所属）` (D42) */
   fullwidth?: true;
   role?: Names;
+  /** the pen name or former name the credit prints, in every language (D58) */
+  credited?: Names;
 }
 
 /**
@@ -184,6 +211,12 @@ export interface RecordingDetail {
   brass_arranger?: CreditRef[];
   override?: { lyricist: CreditRef[]; composer: CreditRef[] };
   instrumentalOf?: string;
+  /** a live recording: the concert (node key) and show it was recorded at (D54) */
+  live?: { concert: string; date?: string; label?: string };
+  /** length, key and tempo (D61); `from`: the recording id in this work the key and tempo are taken from */
+  audio?: AudioFacts & { from?: string };
+  /** the recording the work is shown with (the node's `au`) */
+  representative?: true;
   externalIds?: Record<string, string>;
   mainLink?: string;
   evidence?: EvidenceMap;
@@ -256,7 +289,7 @@ export interface PersonDetail {
   /** `YYYY-MM-DD`, or `MM-DD` without a public year */
   birthday?: string;
   nativeScript: string;
-  aliases: { text: string; kind: string; note?: string }[];
+  aliases: { text: string; kind: string; names?: Names; note?: string }[];
   distinctFrom: string[];
   /** affiliations this person is credited with, by work */
   affiliations: { work: string; affiliation: string | Names; fullwidth?: true }[];
@@ -319,6 +352,8 @@ export interface ConcertDetail {
   title: Names;
   status: string;
   projects: string[];
+  /** who appears, as the concert's announcements list them (D52) */
+  cast: PerformerRef[];
   stops: {
     id: string;
     /** city and venue node keys; both absent for an online-only show (D47) */
@@ -326,8 +361,14 @@ export interface ConcertDetail {
     label?: string;
     venue?: string;
     /** fandom: the tab of the concert's Fandom page the set list is read from, `<section>|<tab>` */
-    performances: { date: string; label?: string; fandom?: string; setlist: SetlistEntry[] }[];
+    /** `cast`: the show's own cast, when it differs from the concert's (it replaces it) */
+    performances: { date: string; label?: string; fandom?: string; cast?: PerformerRef[]; setlist: SetlistEntry[] }[];
   }[];
+  /**
+   * recordings released from the concert (live CDs, D54), by the date they were recorded. Their
+   * version strings name the concert itself, so they are left out.
+   */
+  liveRecordings: { work: string; rec: string; date?: string; label?: string }[];
   externalIds?: Record<string, string>;
   eventCode?: string;
   evidence?: EvidenceMap;
@@ -356,3 +397,35 @@ export type Detail =
   | ConcertDetail | VenueDetail | CityDetail;
 
 export type DetailFile = Record<string, Detail>;
+
+// --- days ----------------------------------------------------------------------------------
+
+/**
+ * `days.json`: what happened on each date, for "this day in Love Live!". Birthdays are not in it
+ * (the nodes carry them as `bd`).
+ *
+ * - `concert`: a show day. `s` the concert, `c` the venue (absent online).
+ * - `release`: releases out that day (`s`).
+ * - `work`: songs first released that day (`s`), `c` the release they came out on.
+ * - `premiere`: songs first sung live that day, before any release (`s`), `c` the concert.
+ * - `debut`: the first dated fact of a person, character, artist or project (`s`, one type per event).
+ * - `cast`: a casting starts. `s` the person, `c` the character.
+ * - `join` / `leave`: a character's membership starts (founding members left out) or ends. `s` the character, `c` the artist.
+ */
+export const DAY_KINDS = ["concert", "release", "work", "premiere", "debut", "cast", "join", "leave"] as const;
+export type DayKind = (typeof DAY_KINDS)[number];
+
+export interface DayEvent {
+  /** `YYYY-MM-DD` */
+  d: string;
+  k: DayKind;
+  /** subject node keys */
+  s: string[];
+  /** context node keys (venue, release, concert, character, artist) */
+  c?: string[];
+}
+
+export interface DaysFile {
+  format: typeof GRAPH_FORMAT;
+  events: DayEvent[];
+}

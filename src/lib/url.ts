@@ -2,9 +2,11 @@
  * Deep links: the view state as a query string, writing only what differs from the defaults.
  *
  *   ?n=work:nijigasaki/dive&tab=related&focus=2&names=ja&p=nijigasaki,aqours&r=-project&at=2022-01-01&bgm=0
+ *   &mood=upbeat,bright&bpm=120-160   (`bpm=120-`, `bpm=-100`: one bound)
  */
 
-import { DERIVED_RELATIONS, FACT_RELATIONS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
+import { DERIVED_RELATIONS, FACT_RELATIONS, MOODS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
+import { parseBpm } from "./audio";
 import { DEFAULT_NAME_LANG, NAME_LANGS, UI_LANGS, type NameLang, type UiLang } from "../i18n";
 import { DEFAULT_FILTERS, type ColorBy, type Tab, type ViewState } from "../view";
 
@@ -50,6 +52,8 @@ export function toQuery(s: ViewState, defaults: Pick<ViewState, "uiLang" | "name
   const r = diff(RELATIONS, s.relations, DEFAULT_FILTERS.relations);
   if (r) q.set("r", r);
   if (!s.hideIsolated) q.set("isolated", "1");
+  if (s.moods.length) q.set("mood", MOODS.filter((m) => s.moods.includes(m)).join(","));
+  if (s.bpm[0] !== null || s.bpm[1] !== null) q.set("bpm", `${s.bpm[0] ?? ""}-${s.bpm[1] ?? ""}`);
   if (s.time) q.set("at", s.time);
   const text = q.toString();
   return text ? `?${text.replace(/%3A/g, ":").replace(/%2F/g, "/").replace(/%2C/g, ",")}` : "";
@@ -58,7 +62,7 @@ export function toQuery(s: ViewState, defaults: Pick<ViewState, "uiLang" | "name
 /** Parses a query string over `base`; unknown or malformed values are ignored. */
 export function fromQuery(search: string, base: ViewState, isNode: (k: string) => boolean): ViewState {
   const q = new URLSearchParams(search);
-  const s: ViewState = { ...base, types: { ...base.types }, relations: { ...base.relations } };
+  const s: ViewState = { ...base, types: { ...base.types }, relations: { ...base.relations }, moods: [...base.moods], bpm: [...base.bpm] };
   const n = q.get("n");
   if (n && isNode(n)) s.selected = n;
   const tab = q.get("tab") as Tab | null;
@@ -89,6 +93,14 @@ export function fromQuery(search: string, base: ViewState, isNode: (k: string) =
   const r = q.get("r");
   if (r) s.relations = applyDiff<Relation>(RELATIONS, r, DEFAULT_FILTERS.relations);
   if (q.get("isolated") === "1") s.hideIsolated = false;
+  const mood = q.get("mood");
+  if (mood) s.moods = MOODS.filter((m) => mood.split(",").includes(m));
+  const bpm = q.get("bpm")?.match(/^(\d*)-(\d*)$/);
+  if (bpm) {
+    let [lo, hi] = [parseBpm(bpm[1]), parseBpm(bpm[2])];
+    if (lo !== null && hi !== null && lo > hi) [lo, hi] = [hi, lo];
+    s.bpm = [lo, hi];
+  }
   const at = q.get("at");
   if (at && DATE.test(at)) s.time = at;
   return s;

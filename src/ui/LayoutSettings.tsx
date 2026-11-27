@@ -1,19 +1,16 @@
 /**
- * The live layouts' options, as in Gephi's panels: a floating panel beside the zoom buttons on
+ * The live ForceAtlas2's options, as in Gephi's panel: a floating panel beside the zoom buttons on
  * wide screens, and the body of the phone's settings pane. A change re-runs the layout from
  * where the nodes are.
  */
 
-import { useId, type ReactNode } from "react";
+import { useId } from "react";
 
-import { FA2_DEFAULTS, type Fa2Options } from "../../shared/layout";
+import { isDefaultFa2, type Fa2Options } from "../../shared/layout";
 import { useT } from "../context";
 import { Icon } from "../icons";
-import { chooseFa2, chooseNoverlap, useApp } from "../store";
-import { NOVERLAP_DEFAULTS, type LayoutName, type NoverlapOptions } from "../view";
+import { chooseFa2, useApp } from "../store";
 import { SwitchRow } from "./mobile/parts";
-
-export type LiveLayout = Exclude<LayoutName, "preset">;
 
 type Fa2Toggle = { [K in keyof Fa2Options]: Fa2Options[K] extends boolean ? K : never }[keyof Fa2Options];
 type Fa2Amount = Exclude<keyof Fa2Options, Fa2Toggle>;
@@ -32,13 +29,7 @@ const FA2_AMOUNTS: [Fa2Amount, Scale][] = [
   ["gravity", { min: 0.005, max: 5, log: true }],
   ["edgeWeightInfluence", { min: 0, max: 2, step: 0.1 }],
 ];
-const NOVERLAP_AMOUNTS: [keyof NoverlapOptions, Scale][] = [
-  ["margin", { min: 0, max: 20, step: 1 }],
-  ["ratio", { min: 0.5, max: 3, step: 0.1 }],
-];
 const LOG_STEPS = 200;
-
-const sameAs = <T extends object>(o: T, d: T) => (Object.keys(d) as (keyof T)[]).every((k) => o[k] === d[k]);
 
 /** Two significant digits: the values a log slider lands on stay short. */
 const round2 = (x: number) => Number(x.toPrecision(2));
@@ -78,61 +69,47 @@ function Toggle({ phone, on, label, hint, onChange }: { phone: boolean; on: bool
   );
 }
 
-export function LayoutSettings({ layout, phone = false }: { layout: LiveLayout; phone?: boolean }) {
+export function LayoutSettings({ phone = false }: { phone?: boolean }) {
   const t = useT();
   const fa2 = useApp((s) => s.fa2);
-  const noverlap = useApp((s) => s.noverlap);
-  let body: ReactNode;
-  if (layout === "fa2") {
-    body = (
-      <>
-        {FA2_TOGGLES.map((k) => (
-          <Toggle key={k} phone={phone} on={fa2[k]} label={t.fa2Options[k]} hint={t.fa2Hints[k]} onChange={() => chooseFa2({ [k]: !fa2[k] })} />
-        ))}
-        {FA2_AMOUNTS.map(([k, scale]) => (
-          <Amount key={k} label={t.fa2Options[k]} hint={t.fa2Hints[k]} value={fa2[k]} scale={scale} onChange={(v) => chooseFa2({ [k]: v })} />
-        ))}
-      </>
-    );
-  } else {
-    body = (
-      <>
-        <p className="fa2-about">{t.noverlapAbout}</p>
-        {NOVERLAP_AMOUNTS.map(([k, scale]) => (
-          <Amount key={k} label={t.noverlapOptions[k]} hint={t.noverlapHints[k]} value={noverlap[k]} scale={scale} onChange={(v) => chooseNoverlap({ [k]: v })} />
-        ))}
-      </>
-    );
-  }
-  return <div className={`fa2-settings${phone ? " phone" : ""}`}>{body}</div>;
+  return (
+    <div className={`fa2-settings${phone ? " phone" : ""}`}>
+      {FA2_TOGGLES.map((k) => (
+        <Toggle key={k} phone={phone} on={fa2[k]} label={t.fa2Options[k]} hint={t.fa2Hints[k]} onChange={() => chooseFa2({ [k]: !fa2[k] })} />
+      ))}
+      {FA2_AMOUNTS.map(([k, scale]) => (
+        <Amount key={k} label={t.fa2Options[k]} hint={t.fa2Hints[k]} value={fa2[k]} scale={scale} onChange={(v) => chooseFa2({ [k]: v })} />
+      ))}
+    </div>
+  );
 }
 
 /** "Defaults": shown only when something differs from them. */
-export function ResetLayout({ layout, className }: { layout: LiveLayout; className: string }) {
+export function ResetLayout({ className }: { className: string }) {
   const t = useT();
-  const changed = useApp((s) => (layout === "fa2" ? !sameAs(s.fa2, FA2_DEFAULTS) : !sameAs(s.noverlap, NOVERLAP_DEFAULTS)));
+  const changed = useApp((s) => !isDefaultFa2(s.fa2));
   if (!changed) return null;
   return (
-    <button type="button" className={className} onClick={() => (layout === "fa2" ? chooseFa2(null) : chooseNoverlap(null))}>
+    <button type="button" className={className} onClick={() => chooseFa2(null)}>
       {t.layoutDefaults}
     </button>
   );
 }
 
 /** The wide-screen panel, beside the zoom buttons. */
-export function LayoutSettingsPanel({ layout, onClose }: { layout: LiveLayout; onClose: () => void }) {
+export function LayoutSettingsPanel({ onClose }: { onClose: () => void }) {
   const t = useT();
   return (
-    <div className="layout-panel" role="dialog" aria-label={t.layoutSettings[layout]}>
+    <div className="layout-panel" role="dialog" aria-label={t.layoutSettings}>
       <header className="panel-head">
-        <h2>{t.layoutSettings[layout]}</h2>
-        <ResetLayout layout={layout} className="text-btn" />
+        <h2>{t.layoutSettings}</h2>
+        <ResetLayout className="text-btn" />
         <button type="button" className="icon-btn small" aria-label={t.close} onClick={onClose}>
           <Icon name="close" size={16} />
         </button>
       </header>
       <div className="layout-panel-body">
-        <LayoutSettings layout={layout} />
+        <LayoutSettings />
       </div>
     </div>
   );

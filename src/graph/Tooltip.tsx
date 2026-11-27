@@ -1,6 +1,7 @@
 import type { GNode } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { Icon, TypeIcon } from "../icons";
+import { audioSummary } from "../lib/audio";
 import { useBirthdaysToday } from "../lib/birthday";
 import { nameOf, otherNames } from "../lib/names";
 import type { EdgeAttrs } from "../model";
@@ -36,6 +37,7 @@ export function NodeTip({ node, x, y }: { node: GNode; x: number; y: number }) {
         {node.d && <span>{node.d}</span>}
         {projects.length > 0 && node.t !== "project" && <span>{projects.slice(0, 3).join(", ")}{projects.length > 3 ? ` +${projects.length - 3}` : ""}</span>}
       </div>
+      {audioSummary(node.au) && <div className="tip-meta tabular">{audioSummary(node.au)}</div>}
     </div>
   );
 }

@@ -43,7 +43,9 @@ export interface Project {
 
 export interface Alias {
   text: string;
-  kind?: "variant" | "misprint" | "former";
+  kind?: "variant" | "misprint" | "former" | "pen_name";
+  /** the name in each language, for a pen name or former name a credit prints (`credited_name`, D58) */
+  names?: Names;
   note?: string;
 }
 
@@ -105,6 +107,8 @@ export interface Credit {
   /** the official page prints `名前（所属）` with full-width brackets: ja keeps them (D42) */
   fullwidth?: boolean;
   role?: Names;
+  /** the pen name or former name the credit prints: the `text` of one of the person's aliases (D58) */
+  credited_name?: string;
 }
 
 /**
@@ -128,6 +132,22 @@ export interface WorkCredits {
 
 export type RecordingKind = "vocal" | "off_vocal" | "instrumental" | "drama" | "other";
 
+/** Key and tempo from an outside analysis (D61): there is no official value. */
+export interface Audio {
+  /** the tonic, with `m` for a minor key, sharps and flats in ASCII (`F#m`, `Bb`) */
+  key?: string;
+  bpm?: number;
+  /** `4/4`, only where a source states it */
+  time_signature?: string;
+}
+
+/** The show a live recording (a live CD's track) was recorded at (D54). */
+export interface LiveOf {
+  concert: string;
+  date?: string;
+  label?: string;
+}
+
 export interface Recording {
   id: string;
   kind?: RecordingKind;
@@ -139,6 +159,11 @@ export interface Recording {
   brass_arranger?: Credit[];
   credits_override?: WorkCredits;
   instrumental_of?: string;
+  live?: LiveOf;
+  /** length in seconds (D61) */
+  duration?: number;
+  /** an off vocal or instrumental without its own takes `instrumental_of`'s, in the views */
+  audio?: Audio;
   external_ids?: Record<string, string>;
   evidence?: EvidenceMap;
 }
@@ -239,6 +264,8 @@ export interface SetlistItem {
 export interface Performance {
   date: string;
   label?: string;
+  /** the show's cast when it differs from the concert's: the whole list, which replaces it (D52) */
+  cast?: Performer[];
   setlist?: SetlistItem[];
   /** fandom: the set-list tab this show is read from, `<section>|<tab>` (D47) */
   external_ids?: Record<string, string>;
@@ -260,6 +287,8 @@ export interface Concert {
   projects: string[];
   status?: ConcertStatus;
   title: Names;
+  /** who appears, as the concert's announcements list them (D52) */
+  cast?: Performer[];
   stops: Stop[];
   legacy?: { event_code?: string };
   external_ids?: Record<string, string>;
@@ -300,11 +329,23 @@ export interface TrackRow {
   note: string | null;
 }
 
-/** `recordings.json`: one row per recording, with the main YouTube Music link (D2). */
+/**
+ * `recordings.json`: one row per recording, with the main YouTube Music link (D2), and its length,
+ * key and tempo (D61). The audio fields are newer than the rest and may be absent.
+ */
 export interface RecordingRow {
   id: string;
   work: string;
   main_link: string | null;
+  duration?: number | null;
+  /**
+   * `mood`: labels the TakasakiInfo builder makes from the key and tempo by rule
+   * (`upbeat` bpm ≥ 140, `slow` bpm < 100, `bright` major, `wistful` minor);
+   * `from`: the recording the values belong to, when an off vocal takes its vocal recording's.
+   */
+  audio?: (Audio & { mood?: string[]; from?: string }) | null;
+  /** the recording its work is shown with: the first studio vocal one, for a soundtrack cue the first instrumental */
+  representative?: boolean;
 }
 
 /** Every v1 data file is wrapped like this (DESIGN.md §10.2). */

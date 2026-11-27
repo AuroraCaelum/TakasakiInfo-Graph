@@ -3,19 +3,19 @@ import { useShallow } from "zustand/react/shallow";
 
 import { FA2_DEFAULTS, type Fa2Options } from "../shared/layout";
 import { DEFAULT_NAME_LANG, detectUiLang, type NameLang, type UiLang } from "./i18n";
-import {
-  cloneFilters, LAYOUTS, NOVERLAP_DEFAULTS, type LayoutName, type NoverlapOptions, type ThemeChoice, type ViewState,
-} from "./view";
+import { cloneFilters, type ThemeChoice, type ViewState } from "./view";
 
 export interface AppState extends ViewState {
   theme: ThemeChoice;
-  layout: LayoutName;
-  /** the live layouts' options */
+  /** the live ForceAtlas2's options */
   fa2: Fa2Options;
-  noverlap: NoverlapOptions;
   filtersOpen: boolean;
   /** legend entry under the pointer: highlights that class */
   legendHover: string | null;
+  /** the top bar's drop-down open: this day in Love Live!, or the random player (one at a time) */
+  popover: "today" | "player" | null;
+  /** nodes the open drop-down points at: highlighted while nothing is selected or hovered */
+  spotlight: string[] | null;
   set: (p: Partial<AppState>) => void;
   select: (key: string | null) => void;
   resetFilters: () => void;
@@ -47,7 +47,7 @@ function storedOptions<T extends object>(key: string, defaults: T): T {
   return out;
 }
 
-/** Per-viewer conveniences only (theme, languages, layout); everything else lives in the URL. */
+/** Per-viewer conveniences only (theme, languages, layout options); everything else lives in the URL. */
 export function remember(key: string, value: string): void {
   try {
     localStorage.setItem(key, value);
@@ -76,11 +76,11 @@ export function defaultView(): ViewState {
 export const useApp = create<AppState>((set) => ({
   ...defaultView(),
   theme: stored("tg.theme", ["system", "light", "dark"] as const) ?? "system",
-  layout: stored("tg.layout", LAYOUTS) ?? "preset",
   fa2: storedOptions("tg.fa2", FA2_DEFAULTS),
-  noverlap: storedOptions("tg.noverlap", NOVERLAP_DEFAULTS),
   filtersOpen: false,
   legendHover: null,
+  popover: null,
+  spotlight: null,
   set: (p) => set(p),
   select: (key) => set((s) => (key === s.selected ? {} : {
     selected: key,
@@ -110,23 +110,11 @@ export function chooseTheme(theme: ThemeChoice): void {
   useApp.getState().set({ theme });
 }
 
-export function chooseLayout(layout: LayoutName): void {
-  remember("tg.layout", layout);
-  useApp.getState().set({ layout });
-}
-
 /** Changes some of the ForceAtlas2 options; `null` puts every one back to its default. */
 export function chooseFa2(patch: Partial<Fa2Options> | null): void {
   const fa2 = patch ? { ...useApp.getState().fa2, ...patch } : { ...FA2_DEFAULTS };
   remember("tg.fa2", JSON.stringify(fa2));
   useApp.getState().set({ fa2 });
-}
-
-/** Changes some of the Noverlap options; `null` puts every one back to its default. */
-export function chooseNoverlap(patch: Partial<NoverlapOptions> | null): void {
-  const noverlap = patch ? { ...useApp.getState().noverlap, ...patch } : { ...NOVERLAP_DEFAULTS };
-  remember("tg.noverlap", JSON.stringify(noverlap));
-  useApp.getState().set({ noverlap });
 }
 
 /**
@@ -136,6 +124,6 @@ export function chooseNoverlap(patch: Partial<NoverlapOptions> | null): void {
 export function useFilters() {
   return useApp(useShallow((s) => ({
     types: s.types, drama: s.drama, bgm: s.bgm, projects: s.projects, relations: s.relations, hideIsolated: s.hideIsolated,
-    time: s.time,
+    moods: s.moods, bpm: s.bpm, time: s.time,
   })));
 }
