@@ -11,7 +11,7 @@ import SwaggerUI from "swagger-ui-dist/swagger-ui-es-bundle.js";
 import "swagger-ui-dist/swagger-ui.css";
 import "./api.css";
 
-const API_BASE = "https://d1zzovwupaegwb.cloudfront.net/api/v1/";
+const API_BASE = "https://takasakiinfo-api.auroracaelum.com/api/v1/";
 const SPEC_URL = new URL("openapi.json", API_BASE).toString();
 
 document.getElementById("api-spec")?.setAttribute("href", SPEC_URL);
