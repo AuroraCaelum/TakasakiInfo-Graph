@@ -24,13 +24,14 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { Worker } from "node:worker_threads";
 
+import type { NodeType } from "../shared/graph";
 import { SHAREABLE_KEY, SITE_URL, sharePath, shareRoot } from "../shared/share";
 import { DICTS } from "../src/i18n";
 import { palette } from "../src/theme";
 import { cardDescription, cardTitle, LABEL, type NodeCard } from "./lib/og-card";
 import { loadCardSet } from "./lib/og-cards";
 import {
-  GRAPH_WIDTH, HEIGHT, WIDTH, graphSvg, loadFonts, rasterise, renderer, siteCardElement, type El,
+  cardMap, HEIGHT, WIDTH, loadFonts, mapBackdrop, projectsBackdrop, renderer, SITE_MAP_SIZE, siteCardElement, type El,
 } from "./lib/og-render";
 import type { WorkerJob, WorkerResult } from "./lib/og-worker";
 
@@ -74,14 +75,8 @@ function sharePage(c: NodeCard, image: string, color: string): string {
 `;
 }
 
-const API_ENDPOINTS = [
-  "GET /api/v1/search?q=…",
-  "GET /api/v1/works/{id}",
-  "GET /api/v1/persons/{id}/credits",
-  "GET /api/v1/concerts/{id}/setlist",
-  "GET /api/v1/artists/{id}/lineup",
-  "GET /api/v1/birthdays",
-];
+const API_CHIPS = ["Read-only", "REST · JSON", "OpenAPI"];
+const API_TYPES: NodeType[] = ["work", "person", "character", "artist", "release", "concert", "venue"];
 
 /** A card worker: TypeScript, so it registers tsx's loader first (workers don't inherit it). */
 const WORKER_BOOT = new URL(`data:text/javascript,${encodeURIComponent(
@@ -185,18 +180,19 @@ async function main() {
     { label: LABEL.releases, value: counts.release ?? 0 },
     { label: LABEL.concerts, value: counts.concert ?? 0 },
   ];
-  const mapPng = rasterise(graphSvg(graph, GRAPH_WIDTH, HEIGHT, 36), GRAPH_WIDTH);
   await siteCard(siteCardElement({
     lines: (["ja", "ko", "en"] as const).map((l) => DICTS[l].appTagline),
     stats,
-    graph: `data:image/png;base64,${mapPng.toString("base64")}`,
+    backdrop: projectsBackdrop(cardMap(graph, SITE_MAP_SIZE)),
   }), "main");
+  // the most central node of each kind, with its links: anything can be asked for, links and all
+  const central = API_TYPES.map((t) => graph.nodes.filter((n) => n.t === t).sort((a, b) => b.m.pr - a.m.pr)[0]?.k).filter((k) => !!k);
   await siteCard(siteCardElement({
     suffix: "API",
     lines: ["ラブライブ！データベースAPI", "러브 라이브! 데이터베이스 API", "The Love Live! database API"],
     stats: [],
-    note: "Read-only · REST · JSON · OpenAPI",
-    code: API_ENDPOINTS,
+    chips: API_CHIPS,
+    backdrop: mapBackdrop(set.map, central),
   }), "api");
 
   // drop cards nothing uses any more
