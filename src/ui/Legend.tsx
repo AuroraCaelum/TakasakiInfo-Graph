@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 
-import { NODE_TYPES } from "../../shared/graph";
+import { COLOR_GROUPS, NODE_TYPES } from "../../shared/graph";
 import { useModel, usePalette, useT } from "../context";
 import { Icon, TypeIcon } from "../icons";
 import { classOf } from "../lib/classes";
 import { nameOf } from "../lib/names";
 import type { Visible } from "../lib/visibility";
 import { useApp } from "../store";
-import { COMMUNITY_COLORS, communityColor, projectColor } from "../theme";
+import { COMMUNITY_COLORS, communityColor, nodeProjectColor, projectColor } from "../theme";
 
 export interface LegendEntry {
   id: string;
@@ -31,12 +31,17 @@ export function useLegendEntries(): LegendEntry[] {
     }));
   }
   if (s.colorBy === "project") {
+    // each group with a color of its own after its project
+    const groups = COLOR_GROUPS.map((id) => model.nodes.get(`artist:${id}`)).filter((n) => !!n);
     return [
-      ...model.projects.map((id) => ({
-        id: `project:${id}`, label: nameOf(model.nodes.get(`project:${id}`)?.n, s.nameLang, id), color: projectColor(p, [id]),
-      })),
-      { id: "project:_multi", label: t.multiProject, color: p.other },
-      { id: "project:_none", label: t.noProject, color: p.other },
+      ...model.projects.flatMap((id) => [
+        { id: `project:${id}`, label: nameOf(model.nodes.get(`project:${id}`)?.n, s.nameLang, id), color: projectColor(p, [id]) },
+        ...groups.filter((g) => g.p[0] === id).map((g) => ({
+          id: `group:${g.g}`, label: nameOf(g.n, s.nameLang, g.k), color: nodeProjectColor(p, g),
+        })),
+      ]),
+      { id: "project:_multi", label: t.multiProject, color: p.common },
+      { id: "project:_none", label: t.noProject, color: p.common },
     ];
   }
   return [

@@ -28,6 +28,21 @@ describe("buildGraph: nodes", () => {
     expect(built.nodes.get("venue:hall-2")?.p).toEqual(["alpha"]);
   });
 
+  it("marks a group with a color of its own, its members, and what only they are credited with", () => {
+    // Unit A as one of COLOR_GROUPS
+    const g = buildGraph(JSON.parse(JSON.stringify(fixture()).replaceAll('"unit-a"', '"saint-snow"')));
+    const group = new Set(["artist:saint-snow", ...g.edges.filter((e) => e.r === "member" && e.t === "artist:saint-snow").map((e) => e.s)]);
+    const credits = (k: string) => g.edges.filter((e) => (e.r === "performer" || e.r === "release_artist") && e.t === k).map((e) => e.s);
+    const marked = [...g.nodes.values()].filter((n) => n.g).map((n) => n.k);
+    expect(marked).toEqual(expect.arrayContaining([...group]));
+    expect(marked.some((k) => k.startsWith("work:"))).toBe(true);
+    for (const n of g.nodes.values()) {
+      const only = credits(n.k).length > 0 && credits(n.k).every((x) => group.has(x));
+      expect(n.g, n.k).toBe(group.has(n.k) || only ? "saint-snow" : undefined);
+    }
+    expect([...built.nodes.values()].some((n) => n.g)).toBe(false);
+  });
+
   it("dates works by their first release or performance, and the rest by their first edge", () => {
     expect(built.nodes.get("work:alpha/w1")?.d).toBe("2021-05-01"); // performed before release
     expect(built.nodes.get("work:alpha/d1")?.d).toBe("2024-01-10");

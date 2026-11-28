@@ -12,6 +12,12 @@ import type { Copyright, EvidenceMap, Names, RecordingKind } from "./v1";
 
 export const GRAPH_FORMAT = 1;
 
+/**
+ * Groups inside a project with official colors of their own (src/theme.ts), by artist id: the
+ * rivals of the series, who are told apart from the project they appear in.
+ */
+export const COLOR_GROUPS = ["a-rise", "saint-snow", "sunny-passion"];
+
 export const NODE_TYPES = ["project", "artist", "character", "person", "work", "release", "concert", "venue", "city"] as const;
 export type NodeType = (typeof NODE_TYPES)[number];
 
@@ -116,6 +122,11 @@ export interface GNode {
   st?: string;
   /** outside the series (project `external`): no project hub, `p` from what it is linked to */
   ext?: true;
+  /**
+   * a group of COLOR_GROUPS (artist id) the node belongs to: the group itself, its members, and
+   * the works and releases credited to nobody else, which the map colors as the group
+   */
+  g?: string;
   /** persons and characters: birthday as `MM-DD`, to mark the node on the day */
   bd?: string;
   /** works: length, key and tempo of the representative recording (D61) */
