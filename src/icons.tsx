@@ -13,7 +13,7 @@ export type Pictogram = NodeType | "bgm";
 /** The pictogram of a node: its type's, or for a BGM work the BGM one. */
 export const pictogramOf = (t: NodeType, sub?: string): Pictogram => (t === "work" && sub === "bgm" ? "bgm" : t);
 
-const TYPE_PATHS: Record<Pictogram, string> = {
+export const TYPE_PATHS: Record<Pictogram, string> = {
   project: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
   artist: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/>',
   character: '<path d="M12 3l2.6 5.6 6 .7-4.5 4.1 1.2 6L12 16.4 6.7 19.4l1.2-6L3.4 9.3l6-.7z"/>',
@@ -45,7 +45,7 @@ export function TypeIcon({ type, sub, size = 16, ...rest }: { type: NodeType; su
   );
 }
 
-const UI_PATHS = {
+export const UI_PATHS = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   close: '<path d="M18 6 6 18M6 6l12 12"/>',
   filter: '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>',

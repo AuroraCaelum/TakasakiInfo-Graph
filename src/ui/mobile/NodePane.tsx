@@ -3,6 +3,7 @@ import { useDetail, useNode, usePalette, useT } from "../../context";
 import { Icon, TypeIcon } from "../../icons";
 import { useBirthdaysToday } from "../../lib/birthday";
 import { nameOf, otherNames } from "../../lib/names";
+import { shareUrl } from "../../lib/url";
 import { nodePasses, type Visible } from "../../lib/visibility";
 import { useApp } from "../../store";
 import { Badge, BirthdayBadge } from "../common";
@@ -29,7 +30,7 @@ export function NodePane({ onPath, onCopied }: { onPath: () => void; onCopied: (
   const name = nameOf(node.n, s.nameLang, node.k);
   const sub = subtypeLabel(t, node);
   const hidden = !nodePasses(node, { ...s, selected: null });
-  const copy = () => navigator.clipboard?.writeText(window.location.href).then(onCopied, () => undefined);
+  const copy = () => navigator.clipboard?.writeText(shareUrl(window.location.href, node.k)).then(onCopied, () => undefined);
 
   return (
     <article className="m-node" aria-label={name}>
