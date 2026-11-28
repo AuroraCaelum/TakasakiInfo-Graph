@@ -6,6 +6,7 @@
  */
 
 import { DERIVED_RELATIONS, FACT_RELATIONS, MOODS, NODE_TYPES, type NodeType, type Relation } from "../../shared/graph";
+import { SHAREABLE_KEY, sharePath } from "../../shared/share";
 import { parseBpm } from "./audio";
 import { DEFAULT_NAME_LANG, NAME_LANGS, UI_LANGS, type NameLang, type UiLang } from "../i18n";
 import { DEFAULT_FILTERS, type ColorBy, type Tab, type ViewState } from "../view";
@@ -55,8 +56,25 @@ export function toQuery(s: ViewState, defaults: Pick<ViewState, "uiLang" | "name
   if (s.moods.length) q.set("mood", MOODS.filter((m) => s.moods.includes(m)).join(","));
   if (s.bpm[0] !== null || s.bpm[1] !== null) q.set("bpm", `${s.bpm[0] ?? ""}-${s.bpm[1] ?? ""}`);
   if (s.time) q.set("at", s.time);
-  const text = q.toString();
-  return text ? `?${text.replace(/%3A/g, ":").replace(/%2F/g, "/").replace(/%2C/g, ",")}` : "";
+  const text = readable(q);
+  return text ? `?${text}` : "";
+}
+
+/** A query string with `:`, `/` and `,` left unescaped, as they read in a node key or a list. */
+const readable = (q: URLSearchParams) => q.toString().replace(/%3A/g, ":").replace(/%2F/g, "/").replace(/%2C/g, ",");
+
+/**
+ * The link "Copy link" gives: the node's share page (its preview shows the node, see
+ * shared/share.ts) with the rest of the view as its query, which the page passes on to the map.
+ * `href` is the map's own address with `?n=` already in it.
+ */
+export function shareUrl(href: string, key: string): string {
+  if (!SHAREABLE_KEY.test(key)) return href;
+  const url = new URL(href);
+  const q = new URLSearchParams(url.search);
+  q.delete("n");
+  const rest = readable(q);
+  return `${new URL(sharePath(key), new URL(".", url))}${rest ? `?${rest}` : ""}`;
 }
 
 /** Parses a query string over `base`; unknown or malformed values are ignored. */

@@ -9,6 +9,8 @@
  * and a legend that isolates them on hover: color is never the only cue. With slot 7 (violet)
  * kept for derived edges, the slots run out at cities: they fold into the neutral gray rather
  * than a generated ninth hue, and their pictogram tells them apart.
+ *
+ * Projects are not slots: they take their official colors, which readers know them by.
  */
 
 import type { NodeType } from "../shared/graph";
@@ -29,15 +31,42 @@ const TYPE_SLOT: Record<Exclude<NodeType, "project" | "city">, number> = {
 const NEUTRAL = "#898781";
 
 /**
- * Fixed slot per project, by id, so a project keeps its color across data updates.
- * Projects not listed here fold into "other" (gray) rather than generating a ninth hue.
+ * The official colors of the projects (the "Official SNS" labels on lovelive-anime.jp), by id,
+ * so a project keeps its color across data updates. `dark` lifts the ones too dark to read on
+ * the dark surface (to about 3:1).
  */
-export const PROJECT_SLOT: Record<string, number> = {
-  nijigasaki: 0, aqours: 1, hasunosora: 2, liella: 3, ikizulive: 4, musical: 5, muse: 6, yohane: 7,
+const PROJECT_COLORS: Record<string, { light: string; dark?: string }> = {
+  muse: { light: "#e50080" },
+  aqours: { light: "#19b1f6" },
+  nijigasaki: { light: "#eebd0d" },
+  liella: { light: "#da57d8" },
+  musical: { light: "#c40035", dark: "#cf1a3d" },
+  hasunosora: { light: "#fb8a9b" },
+  yohane: { light: "#19737d" },
+  ikizulive: { light: "#ed6d00" },
+  // the series as a whole (Love Live!'s own pink, see COMMON)
+  lovelive: { light: "#b06680" },
 };
 
+/**
+ * Groups with official colors of their own inside a project (shared/graph.ts COLOR_GROUPS says
+ * which nodes take them), by artist id.
+ */
+const GROUP_COLORS: Record<string, { light: string; dark?: string }> = {
+  "a-rise": { light: "#6518ac", dark: "#8a49d8" },
+  "saint-snow": { light: "#664488", dark: "#7d5ba1" },
+  "sunny-passion": { light: "#ff8f70" },
+};
+
+/**
+ * The series' color, for the series project and everything else: several projects, no project,
+ * a project not listed. Love Live!'s own pink (#e4007f) is μ's' color to the eye, so this is it
+ * greyed toward rose.
+ */
+const COMMON = PROJECT_COLORS.lovelive.light;
+
 /** Display order of projects (filters, legend); ids not listed follow, alphabetically. */
-export const PROJECT_ORDER = ["muse", "aqours", "nijigasaki", "liella", "musical", "hasunosora", "yohane", "ikizulive"];
+export const PROJECT_ORDER = ["muse", "aqours", "nijigasaki", "liella", "musical", "hasunosora", "yohane", "ikizulive", "lovelive"];
 
 export const COMMUNITY_COLORS = 8;
 
@@ -56,8 +85,14 @@ export interface Palette {
   edgeStrong: string;
   derived: string;
   derivedStrong: string;
-  /** neutral for "several projects", "no project", "other community" */
+  /** neutral for "other community" */
   other: string;
+  /** project id → its color */
+  projects: Record<string, string>;
+  /** artist id of a group with its own color → the color */
+  groups: Record<string, string>;
+  /** the project colors' "everything else" */
+  common: string;
   slots: string[];
   type: Record<NodeType, string>;
   /** pictogram color drawn on top of the node fill */
@@ -99,16 +134,23 @@ export function palette(mode: ThemeMode): Palette {
     derived: glAlpha(slots[6], 0.3),
     derivedStrong: glAlpha(slots[6], 0.9),
     other: NEUTRAL,
+    projects: Object.fromEntries(Object.entries(PROJECT_COLORS).map(([id, c]) => [id, (!light && c.dark) || c.light])),
+    groups: Object.fromEntries(Object.entries(GROUP_COLORS).map(([id, c]) => [id, (!light && c.dark) || c.light])),
+    common: COMMON,
     slots,
     type,
     picto,
   };
 }
 
+/** The color of one project, or of a node's projects: its one project's, else the common one. */
 export function projectColor(p: Palette, projects: string[]): string {
-  if (projects.length !== 1) return p.other;
-  const slot = PROJECT_SLOT[projects[0]];
-  return slot === undefined ? p.other : p.slots[slot];
+  return (projects.length === 1 && p.projects[projects[0]]) || p.common;
+}
+
+/** A node's color by project: its group's when it has one (GNode.g), else its project's. */
+export function nodeProjectColor(p: Palette, n: { p: string[]; g?: string }): string {
+  return (n.g && p.groups[n.g]) || projectColor(p, n.p);
 }
 
 export function communityColor(p: Palette, community: number): string {

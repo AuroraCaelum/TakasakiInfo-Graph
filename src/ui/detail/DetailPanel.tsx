@@ -4,6 +4,7 @@ import { useDetail, useNode, usePalette, useT } from "../../context";
 import { useBirthdaysToday } from "../../lib/birthday";
 import { Icon, TypeIcon } from "../../icons";
 import { nameOf, otherNames } from "../../lib/names";
+import { shareUrl } from "../../lib/url";
 import { nodePasses } from "../../lib/visibility";
 import { useApp } from "../../store";
 import type { Tab } from "../../view";
@@ -30,7 +31,7 @@ export function DetailPanel() {
   const sub = subtypeLabel(t, node);
   const hidden = !nodePasses(node, { ...s, selected: null });
   const copy = () => {
-    navigator.clipboard?.writeText(window.location.href).then(() => {
+    navigator.clipboard?.writeText(shareUrl(window.location.href, node.k)).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }, () => undefined);

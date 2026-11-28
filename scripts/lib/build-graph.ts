@@ -28,7 +28,7 @@
  */
 
 import {
-  ARRANGER_ROLES, EXTERNAL_PROJECT, isDerived,
+  ARRANGER_ROLES, COLOR_GROUPS, EXTERNAL_PROJECT, isDerived,
   type ArrangerRole, type ArtistDetail, type AudioFacts, type CharacterDetail, type CityDetail, type ConcertDetail, type CreditRef, type Detail,
   type GEdge, type GNode, type LinkRef, type NodeType, type Period, type PerformerRef, type PersonDetail, type ProjectDetail,
   type Relation, type ReleaseDetail, type ReleaseTrack, type SetlistEntry, type VenueDetail, type WorkAppearance, type WorkDetail,
@@ -729,6 +729,18 @@ export function buildGraph(ds: V.V1Dataset): BuiltGraph {
       const p = nodes.get(e.t)!;
       p.d = minDate(p.d, e.d);
     }
+  }
+
+  // Groups with colors of their own: the group, its members, and what only they are credited with.
+  const credited = new Map<string, string[]>();
+  for (const e of edgeList) if (e.r === "performer" || e.r === "release_artist") credited.set(e.t, [...(credited.get(e.t) ?? []), e.s]);
+  for (const id of COLOR_GROUPS) {
+    const gk = nodeKey("artist", id);
+    if (!nodes.has(gk)) continue;
+    const group = new Set([gk]);
+    for (const e of edgeList) if (e.r === "member" && e.t === gk) group.add(e.s);
+    for (const k of group) nodes.get(k)!.g ??= id;
+    for (const [k, by] of credited) if (by.every((x) => group.has(x))) nodes.get(k)!.g ??= id;
   }
 
   // --- remaining details ---------------------------------------------------------------------

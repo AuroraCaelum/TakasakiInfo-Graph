@@ -61,7 +61,13 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      - run: npm run build # data from the CDN, then typecheck and bundle
+      # fonts and share cards from the last run: only cards whose content changed are drawn again
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: og-${{ github.run_id }}
+          restore-keys: og-
+      - run: npm run build # data from the CDN, share pages and cards, then typecheck and bundle
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
