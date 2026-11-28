@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  TAKASAKI_V1: https://d1zzovwupaegwb.cloudfront.net/data/v1/
+  TAKASAKI_V1: https://takasakiinfo-api.auroracaelum.com/data/v1/
 
 jobs:
   check:

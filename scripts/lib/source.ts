@@ -11,7 +11,7 @@ import {
   type DataVersion, type V1Dataset, type V1File, type Wrapped,
 } from "../../shared/v1";
 
-export const DEFAULT_SOURCE = "https://d1zzovwupaegwb.cloudfront.net/data/v1/";
+export const DEFAULT_SOURCE = "https://takasakiinfo-api.auroracaelum.com/data/v1/";
 
 /** The major version of the v1 wrapper this builder understands (DESIGN.md §10.5: breaking = v2). */
 export const SUPPORTED_FORMAT_MAJOR = 1;
