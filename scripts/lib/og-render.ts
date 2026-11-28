@@ -18,7 +18,7 @@ import UPNG from "upng-js";
 import { isDerived, type GEdge, type GNode, type GraphFile, type NodeType } from "../../shared/graph";
 import { TYPE_PATHS, UI_PATHS } from "../../src/icons";
 import { nodeSize } from "../../src/lib/node-size";
-import { nodeProjectColor, palette, projectColor } from "../../src/theme";
+import { nodeProjectColor, palette, PROJECT_ORDER, projectColor } from "../../src/theme";
 import type { CardStat, FactIcon, NodeCard } from "./og-card";
 
 export const WIDTH = 1200;
@@ -58,7 +58,7 @@ export async function loadFonts(cacheDir: string): Promise<{ fonts: Font[]; hash
 
 // ---- elements --------------------------------------------------------------------------------
 
-type Child = El | string | number | null | undefined | false;
+export type Child = El | string | number | null | undefined | false;
 export interface El {
   type: string;
   props: Record<string, unknown>;
@@ -182,11 +182,7 @@ export function nodeCardElement(c: NodeCard, names: CardNames, map: CardMap): El
   const { size, lines } = titleSize(c.title, TEXT_WIDTH);
   return div({ width: WIDTH, height: HEIGHT, background: P.surface, fontFamily: "Pretendard JP", color: P.ink, position: "relative" },
     ...nodeOnMap(map, c.key),
-    // the map fades out under the text
-    div({
-      position: "absolute", left: 0, top: 0, width: WIDTH, height: HEIGHT,
-      backgroundImage: `linear-gradient(90deg, ${P.surface} 0%, ${P.surface} 46%, ${alpha(P.surface, 0.75)} 58%, ${alpha(P.surface, 0)} 72%)`,
-    }),
+    fade(),
     // the site, top right over the map
     div({ position: "absolute", right: 40, top: 40, padding: "8px 16px", borderRadius: 999, background: alpha(P.surface, 0.85) }, brand(22)),
     div({ position: "absolute", left: 0, top: 0, flexDirection: "column", boxSizing: "border-box", width: PAD + TEXT_WIDTH, height: HEIGHT - 10, padding: `56px 0 34px ${PAD}px` },
@@ -234,27 +230,16 @@ const DRAW_ORDER: NodeType[] = ["venue", "city", "release", "work", "person", "c
 const dot = (n: GNode, [x, y]: readonly [number, number], extra = "", fill = P.type[n.t], min = 0) =>
   `<circle cx="${f1(x)}" cy="${f1(y)}" r="${Math.max(min, nodeSize(n) * 0.62).toFixed(2)}" fill="${fill}"${extra}/>`;
 
-/**
- * The whole map as an SVG, drawn from the layout the build computed: what the site opens on.
- * `faint`: in gray, to lie behind a node card.
- */
-export function graphSvg(graph: MapGraph, width: number, height: number, pad: number, faint = false): string {
-  const pos = projection(graph, width, height, pad);
-  const edges = (faint ? [] : graph.edges)
-    .filter(drawn)
-    .map((e) => {
-      const a = pos.get(e.s);
-      const b = pos.get(e.t);
-      return a && b ? `M${f1(a[0])} ${f1(a[1])}L${f1(b[0])} ${f1(b[1])}` : "";
-    })
-    .join("");
+/** The whole map as an SVG, drawn from the layout the build computed, in faint gray: what the cards lie on. */
+function graphSvg(graph: MapGraph, size: number, pad: number): string {
+  const pos = projection(graph, size, size, pad);
   const nodes = [...graph.nodes]
     .sort((a, b) => DRAW_ORDER.indexOf(a.t) - DRAW_ORDER.indexOf(b.t))
-    .map((n) => dot(n, pos.get(n.k)!, "", faint ? "#d3d2cb" : undefined))
+    .map((n) => dot(n, pos.get(n.k)!, "", "#d3d2cb"))
     .join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`
-    + `<path d="${edges}" stroke="${P.ink}" stroke-opacity="${faint ? 0.035 : 0.07}" stroke-width="0.6" fill="none"/>`
-    + `<g stroke="${P.surface}" stroke-width="0.6"${faint ? ' opacity="0.6"' : ""}>${nodes}</g></svg>`;
+  // dots only: the links' hairlines would make every card several times larger
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">`
+    + `<g stroke="${P.surface}" stroke-width="0.6" opacity="0.6">${nodes}</g></svg>`;
 }
 
 /** Size of the map behind a node card: larger than the card is tall, so the node's neighbourhood spreads out. */
@@ -264,15 +249,16 @@ const ANCHOR = [930, 330] as const;
 
 /** The map behind the node cards: drawn once, moved under each card so that its node is at ANCHOR. */
 export interface CardMap {
-  /** the faint map, a PNG data URL, MAP_SIZE square */
+  /** the faint map, a PNG data URL, `size` square */
   image: string;
+  size: number;
   pos: Map<string, readonly [number, number]>;
   nodes: Map<string, GNode>;
   /** each node's drawn links (a project's: its members) */
   links: Map<string, string[]>;
 }
 
-export function cardMap(graph: MapGraph): CardMap {
+export function cardMap(graph: MapGraph, size = MAP_SIZE): CardMap {
   const links = new Map<string, string[]>(graph.nodes.map((n) => [n.k, []]));
   for (const e of graph.edges) {
     // a project's members are its links; the members' line to their project is not drawn
@@ -282,47 +268,80 @@ export function cardMap(graph: MapGraph): CardMap {
       links.get(e.t)?.push(e.s);
     }
   }
-  const png = rasterise(graphSvg(graph, MAP_SIZE, MAP_SIZE, 24, true), MAP_SIZE);
+  const png = rasterise(graphSvg(graph, size, 24), size);
   return {
     image: `data:image/png;base64,${png.toString("base64")}`,
-    pos: projection(graph, MAP_SIZE, MAP_SIZE, 24),
+    size,
+    pos: projection(graph, size, size, 24),
     nodes: new Map(graph.nodes.map((n) => [n.k, n])),
     links,
   };
 }
 
-/** The node where it is on the map, its links and the nodes at their ends, over the faint map. */
-function nodeOnMap(map: CardMap, key: string): Child[] {
-  const at = map.pos.get(key);
-  const node = map.nodes.get(key);
-  if (!at || !node) return [];
-  const dx = ANCHOR[0] - at[0];
-  const dy = ANCHOR[1] - at[1];
+/**
+ * The faint map moved by (dx, dy), with the nodes `keys` drawn over it with their links and the
+ * nodes at their ends: one node large (a node's card), or several small.
+ */
+function mapLayer(map: CardMap, dx: number, dy: number, keys: string[], colorOf?: (key: string) => string): Child[] {
   const place = (k: string) => {
     const [x, y] = map.pos.get(k)!;
     return [x + dx, y + dy] as const;
   };
-  const color = P.type[node.t];
-  const others = [...new Set(map.links.get(key) ?? [])].filter((k) => map.pos.has(k));
-  const lines = others.map((k) => `M${f1(ANCHOR[0])} ${f1(ANCHOR[1])}L${place(k).map(f1).join(" ")}`).join("");
-  const ends = others
-    .map((k) => map.nodes.get(k)!)
-    .sort((a, b) => DRAW_ORDER.indexOf(a.t) - DRAW_ORDER.indexOf(b.t))
-    .map((n) => dot(n, place(n.k), ` stroke="${P.surface}" stroke-width="1"`, P.type[n.t], 3.5))
-    .join("");
-  const [x, y] = ANCHOR.map(f1);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">`
-    + `<path d="${lines}" stroke="${color}" stroke-opacity="${others.length > 80 ? 0.22 : 0.45}" stroke-width="1.3" fill="none"/>`
-    + ends
-    + `<circle cx="${x}" cy="${y}" r="34" fill="${color}" fill-opacity="0.14"/>`
-    + `<circle cx="${x}" cy="${y}" r="20" fill="none" stroke="${color}" stroke-opacity="0.5" stroke-width="2"/>`
-    + `<circle cx="${x}" cy="${y}" r="11" fill="${color}" stroke="${P.surface}" stroke-width="3"/>`
-    + "</svg>";
+  const one = keys.length === 1;
+  let svg = "";
+  let marks = "";
+  for (const key of keys) {
+    const node = map.nodes.get(key);
+    if (!node || !map.pos.has(key)) continue;
+    const color = colorOf?.(key) ?? P.type[node.t];
+    const [x, y] = place(key).map(f1);
+    const others = [...new Set(map.links.get(key) ?? [])].filter((k) => map.pos.has(k));
+    const lines = others.map((k) => `M${x} ${y}L${place(k).map(f1).join(" ")}`).join("");
+    svg += `<path d="${lines}" stroke="${color}" stroke-opacity="${others.length > 80 ? 0.22 : 0.45}" stroke-width="${one ? 1.3 : 1}" fill="none"/>`;
+    svg += others
+      .map((k) => map.nodes.get(k)!)
+      .sort((a, b) => DRAW_ORDER.indexOf(a.t) - DRAW_ORDER.indexOf(b.t))
+      .map((n) => dot(n, place(n.k), ` stroke="${P.surface}" stroke-width="1"`, colorOf ? color : P.type[n.t], 3.5))
+      .join("");
+    marks += one
+      ? `<circle cx="${x}" cy="${y}" r="34" fill="${color}" fill-opacity="0.14"/>`
+        + `<circle cx="${x}" cy="${y}" r="20" fill="none" stroke="${color}" stroke-opacity="0.5" stroke-width="2"/>`
+        + `<circle cx="${x}" cy="${y}" r="11" fill="${color}" stroke="${P.surface}" stroke-width="3"/>`
+      : `<circle cx="${x}" cy="${y}" r="16" fill="${color}" fill-opacity="0.14"/>`
+        + `<circle cx="${x}" cy="${y}" r="7" fill="${color}" stroke="${P.surface}" stroke-width="2"/>`;
+  }
+  svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}" viewBox="0 0 ${WIDTH} ${HEIGHT}">${svg}${marks}</svg>`;
   return [
-    h("img", { src: map.image, width: MAP_SIZE, height: MAP_SIZE, style: { position: "absolute", left: dx, top: dy } }),
-    h("img", { src: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: WIDTH, height: HEIGHT, style: { position: "absolute", left: 0, top: 0 } }),
+    h("img", { src: map.image, width: map.size, height: map.size, style: { position: "absolute", left: dx, top: dy } }),
+    keys.length ? h("img", { src: `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`, width: WIDTH, height: HEIGHT, style: { position: "absolute", left: 0, top: 0 } }) : null,
   ];
 }
+
+/** The node where it is on the map, at ANCHOR. */
+function nodeOnMap(map: CardMap, key: string): Child[] {
+  const at = map.pos.get(key);
+  return at ? mapLayer(map, ANCHOR[0] - at[0], ANCHOR[1] - at[1], [key]) : [];
+}
+
+/** The map's middle at `center`, with `keys` drawn in (in their type colors, or `colorOf`). */
+export const mapBackdrop = (map: CardMap, keys: string[] = [], colorOf?: (key: string) => string, center: readonly [number, number] = ANCHOR): Child[] =>
+  mapLayer(map, center[0] - map.size / 2, center[1] - map.size / 2, keys, colorOf);
+
+/** The whole map on the right, each project lit in its color: its node and its members. */
+export const projectsBackdrop = (map: CardMap): Child[] => {
+  const ids = PROJECT_ORDER.filter((id) => map.nodes.has(`project:${id}`));
+  return mapBackdrop(map, ids.map((id) => `project:${id}`), (k) => projectColor(P, [k.slice("project:".length)]), [WIDTH - map.size / 2 - 16, HEIGHT / 2 - 5]);
+};
+
+/** Size of the whole map on the map's own card. */
+export const SITE_MAP_SIZE = 640;
+
+/** The text side of a card over the map: the map fades out under it, from `at` (a share of the width) on. */
+const fade = (at = 0.46) =>
+  div({
+    position: "absolute", left: 0, top: 0, width: WIDTH, height: HEIGHT,
+    backgroundImage: `linear-gradient(90deg, ${P.surface} 0%, ${P.surface} ${at * 100}%, ${alpha(P.surface, 0.75)} ${(at + 0.12) * 100}%, ${alpha(P.surface, 0)} ${(at + 0.26) * 100}%)`,
+  });
 
 // ---- the site's cards -------------------------------------------------------------------------------
 
@@ -333,27 +352,24 @@ export interface SiteCard {
   lines: string[];
   /** up to four counts */
   stats: CardStat[];
-  /** a line at the bottom, where the counts would be */
-  note?: string;
-  /** the right half: the map (a PNG data URL) or code lines (`GET /api/v1/works`) */
-  graph?: string;
-  code?: string[];
+  /** short labels at the bottom, where the counts would be */
+  chips?: string[];
+  /** behind the card: the faint map (mapBackdrop, projectsBackdrop), faded out under the text */
+  backdrop: Child[];
 }
 
-/** The site's own pages (the map, the API reference): what it is on the left, a picture of it on the right. */
+/** The projects' colors in their order, for the site's cards' bottom edge. */
+const projectStripe = () =>
+  div({ position: "absolute", left: 0, right: 0, bottom: 0, height: 10 },
+    ...PROJECT_ORDER.filter((id) => id !== "lovelive" && P.projects[id]).map((id) => div({ flex: 1, background: P.projects[id] })));
+
+/** The site's own pages (the map, the API reference): what it is on the left, the map behind on the right. */
 export function siteCardElement(s: SiteCard): El {
   return div({ width: WIDTH, height: HEIGHT, background: P.surface, fontFamily: "Pretendard JP", color: P.ink, position: "relative" },
-    s.graph ? h("img", { src: s.graph, width: GRAPH_WIDTH, height: HEIGHT, style: { position: "absolute", right: 0, top: 0 } }) : null,
-    s.code
-      ? div({ position: "absolute", right: PAD, top: 0, bottom: 0, width: 540, alignItems: "center" },
-        div({ flexDirection: "column", width: "100%", gap: 16, padding: "34px 36px", borderRadius: 24, background: "#f3f2ee", border: `2px solid ${P.grid}` },
-          ...s.code.map((line) => {
-            const [method, ...rest] = line.split(" ");
-            return div({ gap: 16, fontSize: 24, fontWeight: 500, color: P.ink2, ...oneLine },
-              div({ color: P.slots[5], fontWeight: 700, flexShrink: 0 }, method), rest.join(" "));
-          })))
-      : null,
-    div({ flexDirection: "column", boxSizing: "border-box", width: 520 + PAD, height: HEIGHT - 14, padding: `60px 0 44px ${PAD}px` },
+    ...s.backdrop,
+    // the text is narrower than a node card's
+    fade(0.4),
+    div({ position: "absolute", left: 0, top: 0, flexDirection: "column", boxSizing: "border-box", width: 520 + PAD, height: HEIGHT - 10, padding: `60px 0 44px ${PAD}px` },
       div({ alignItems: "center", gap: 18 },
         h("img", { src: LOGO, width: 64, height: 64 }),
         div({ fontSize: 54, fontWeight: 700, letterSpacing: -1 }, "TakasakiInfo"),
@@ -365,13 +381,9 @@ export function siteCardElement(s: SiteCard): El {
       div({ flexDirection: "column", gap: 22 },
         ...[0, 2].filter((i) => i < s.stats.length).map((i) =>
           div({ gap: 24 }, ...s.stats.slice(i, i + 2).map((st) => div({ width: 240 }, statBlock(st)))))),
-      s.note ? div({ fontSize: 22, fontWeight: 500, color: P.muted }, s.note) : null),
-    div({ position: "absolute", left: 0, right: 0, bottom: 0, height: 14 },
-      ...P.slots.slice(0, 5).map((c) => div({ flex: 1, background: c }))));
+      s.chips ? div({ gap: 12 }, ...s.chips.map(pill)) : null),
+    projectStripe());
 }
-
-/** Width of the map on the site's card: the right part, under nothing. */
-export const GRAPH_WIDTH = 700;
 
 // ---- rendering ------------------------------------------------------------------------------------
 
