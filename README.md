@@ -1,183 +1,268 @@
+<div align="center">
+
 # TakasakiInfo Graph
 
-[TakasakiInfo](https://github.com/AuroraCaelum/TakasakiInfo) 데이터베이스의 모든 엔티티를 노드로, 관계를 연결로 그린 인터랙티브 연결 맵입니다. 정적 사이트이며 GitHub Pages로 배포합니다.
+**Every song, person, release and concert of the Love Live! series<br>as one interactive map, in Japanese, Korean and English.**
 
-TakasakiInfo 설계 문서(`automation/docs/DESIGN.md` §10.7 연결 맵)의 그래프 모델을 따릅니다.
+[![Open the map](https://img.shields.io/badge/open%20the%20map-takasakiinfo.auroracaelum.com-e4007f?style=flat-square)](https://takasakiinfo.auroracaelum.com/)
+[![API reference](https://img.shields.io/badge/API%20reference-Swagger%20UI-5d9cec?style=flat-square)](https://takasakiinfo.auroracaelum.com/api/)
+[![Data](https://img.shields.io/badge/data-TakasakiInfo-555?style=flat-square)](https://github.com/AuroraCaelum/TakasakiInfo)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/AuroraCaelum/TakasakiInfo-Graph/deploy.yml?branch=main&style=flat-square&label=deploy)](https://github.com/AuroraCaelum/TakasakiInfo-Graph/actions/workflows/deploy.yml)
+[![Hits](https://hits.sh/github.com/AuroraCaelum/TakasakiInfo-Graph.svg?style=flat-square&label=hits&color=79c83d)](https://hits.sh/github.com/AuroraCaelum/TakasakiInfo-Graph/)
 
-## 기능
+**English** · [한국어](README.ko.md) · [日本語](README.ja.md)
 
-- **그래프**: 노드 약 2,600개를 WebGL로 그립니다. 레이아웃은 빌드할 때 미리 계산해 두므로, 들어올 때마다 같은 그림이 바로 뜹니다.
-- **노드 클릭**: 상세 패널에 탭 네 개가 있습니다.
-  - **개요**: 곡은 맨 위에 대표 음원(없으면 다른 보컬 음원)의 YouTube 영상(직접 눌러야 재생되고, 재생하면 랜덤 재생은 일시정지), 모든 표기(한국어 화면은 ja·ko·rom·kana, 영어·일본어 화면은 ja·rom·ko·kana 순. 성·이름은 `佐伯 (さえき)`처럼 읽기를 괄호로), 별칭(오기는 숨기고 검색에만 씀), 생일, 첫 등장일, 곡은 대표 음원의 길이·키·BPM·분위기, 프로젝트, 링크(공식·YouTube Music·Fandom), 근거(evidence: 상태·출처·확인일)
-  - **데이터**: 종류별 상세. 곡은 크레딧·음원(버전, 길이·키·BPM·분위기, 라이브 음원이면 녹음한 공연)·수록 발매물·공연 이력(부른 버전), 발매물은 에디션·트랙 목록·YouTube Music 링크, 공연은 출연진(회차마다 다르면 그 회차에), 노래한 출연자, 회차별 세트리스트(부른 버전, 공연일별 Fandom 탭 링크)와 그 공연에서 녹음한 라이브 음원, 도시는 회장과 공연 등. 필명이나 옛 이름으로 크레딧된 사람은 인쇄된 이름 옆에 현재 이름을 붙입니다(D58). 가창자는 크레딧 표기대로 공동 명의를 `・`로 묶고 객원을 `feat.` 뒤에 둡니다(D48). 소속 괄호는 일본어 표기에서 공식 페이지처럼 전각 `（）`입니다(D42)
-  - **연관 노드**: 데이터의 모든 연결을 관계별로, 강도·기간·근거와 함께
-  - **연관도**: 중심성(연결 수·연결 강도·PageRank·매개 중심성과 순위), 직접 연결 강도, 간접 연관 순위(개인화 PageRank), 유사 노드(Jaccard·Adamic-Adar), 커뮤니티
-- **오류 제보**: 상세 패널 맨 아래(모바일은 노드 정보 끝)의 `오류 제보`를 누르면 [TakasakiInfo](https://github.com/AuroraCaelum/TakasakiInfo) 저장소의 새 이슈 페이지가 열립니다. 제목과 본문에 노드의 종류·키·이름·프로젝트·노드 링크·탭·데이터 버전이 미리 채워지고, `어떤 점이 잘못됐나요?`와 `근거`만 적으면 됩니다. `bug` 라벨은 라벨을 붙일 권한이 있는 사람에게만 붙습니다.
-- **곡 정보** (D61): 곡은 **대표 음원**(첫 스튜디오 보컬 음원, BGM은 첫 인스트루멘털)의 길이·키·BPM·분위기(경쾌한·느린·밝은·애틋한)를 개요 탭과 툴팁에 보여줍니다. 데이터 탭의 음원 카드에는 음원마다 자기 값이 나오고, Off Vocal은 키·BPM을 원곡 음원에서 물려받았다고 표시합니다. 키·BPM은 공식 값이 아니라 ReccoBeats 분석값이고, 근거에 출처가 있습니다.
-- **검색**: 일본어·가나·로마자·한국어·별칭(필명의 각 언어 표기 포함)으로 찾습니다. 부분 일치이고, 가타카나/히라가나·전각/반각·띄어쓰기를 구분하지 않으며, 로마자 오타도 한두 글자까지 허용합니다. 단축키는 `/`입니다.
-- **필터**: 프로젝트, 노드 종류(BGM은 따로 끌 수 있고, 드라마 트랙은 기본 숨김), 곡 분위기·BPM, 연결 종류, 파생 연결(기본 숨김), 연결 없는 노드 숨기기
-  - **곡 분위기·BPM**: 대표 음원의 분위기 라벨과 BPM 범위로 곡을 거릅니다. 빠르기(경쾌한·느린)끼리, 장단조(밝은·애틋한)끼리는 하나만 맞으면 되고, 두 축을 다 고르면 둘 다 맞아야 합니다. 켜면 값이 없는 곡(BGM 전부 포함)은 숨겨지고, 곡이 아닌 노드는 거르지 않습니다.
-- **색 기준**: 노드 종류, 프로젝트, 커뮤니티(Louvain)
-- **중심 보기**: 선택한 노드의 깊이 1~3 이웃만 남기고 다시 배치합니다. 노드를 더블클릭해도 됩니다.
-- **경로 찾기**: 두 노드 사이의 최단 경로입니다. 현재 보이는 연결만 따라가고, 단계 수가 같으면 강한 연결을 우선합니다. 기본적으로 프로젝트 허브는 거치지 않습니다.
-- **기간 슬라이더**: 고른 날짜까지 나온 곡·발매물과 그날의 라인업·CV만 보여줍니다. 재생도 됩니다.
-- **언어**: 화면은 한·영·일, 이름 표기는 ja·rom·ko를 따로 고릅니다.
-- **URL 딥링크**: 선택한 노드, 탭, 필터, 시점 등이 URL에 담깁니다.
-- **링크 미리보기** (Open Graph): 카카오톡·디스코드·X·슬랙 등에 링크를 붙이면 카드가 뜹니다. 미리보기 크롤러는 JS를 실행하지 않고, `?n=` 링크는 노드와 관계없이 같은 `index.html`이 나가기 때문에, 노드마다 공유 페이지 `/n/<종류>/<id>/`를 빌드할 때 만듭니다. 이 페이지에는 그 노드의 OG 태그와 카드 이미지(`og.png`, 1200×630)가 있고, 사람이 열면 지도로 바로 넘어갑니다(공유 페이지에 붙은 쿼리는 그대로 넘깁니다). `링크 복사`는 이 공유 페이지 주소에 나머지 보기 상태(탭·필터 등)를 쿼리로 붙여 복사합니다.
-  - **카드**: 오른쪽에는 전체 관계 지도를 옅은 회색 점으로 깔고, 그 노드가 늘 같은 자리(오른쪽 가운데)에 오도록 지도를 옮겨 그 노드와 직접 연결된 노드·연결만 종류 색으로 그립니다(프로젝트는 소속 노드). 왼쪽에는 종류 칩(아이콘과 색), 하위 종류·외부 작품·발표됨 태그, 일본어 이름을 크게, 그 아래 한국어·로마자 표기, 종류별 사실(곡은 아티스트·첫 발매일·길이/키/BPM, 공연은 기간·회장, 캐릭터는 CV·유닛·생일, 인물은 맡은 캐릭터·생일, 회장은 도시 등), 프로젝트 이름과 프로젝트 색 띠를 넣습니다. 라벨은 모두 `楽曲 · 곡 · Song`처럼 일·한·영을 함께 씁니다. 다른 노드 이름(가창자·회장·CV)은 일본어 표기이고, 회장의 도시만 세 표기를 모두 씁니다. 연결 수(수록·공연·작곡 등 종류별 최대 4개)는 이미지에는 넣지 않고 미리보기 설명문에만 씁니다.
-  - **메인**(`/`)과 **API 문서**(`/api/`)도 같은 옅은 지도 위에 그립니다. 메인(`og/main.png`)은 지도 전체에서 프로젝트마다 소속 노드와 연결을 공식 색으로 칠하고 곡·인물·발매물·공연 수를 넣습니다. API(`og/api.png`)는 종류마다 가장 중심적인 노드(PageRank)와 그 연결을 종류 색으로 그립니다. 두 카드의 아래 띠는 프로젝트 공식 색입니다.
-  - 경로 찾기 링크는 출발 노드의 카드로 나옵니다.
-  - 이미지 주소에 카드 내용의 해시(`og.png?v=…`)를 붙이므로, 카드가 바뀌면 주소로 캐시하는 서비스도 새 카드를 읽습니다. 카카오톡은 따로 오래 캐시하므로, 바로 바꾸려면 [카카오 공유 디버거](https://developers.kakao.com/tool/debugger/sharing)에서 캐시를 지웁니다.
-- **모바일**: 너비 820px 이하에서는 데스크톱 화면을 줄이지 않고 전용 레이아웃을 씁니다. 아무것도 고르지 않았을 때는 그래프가 화면 전체를 쓰고, 범례는 왼쪽 아래 `범례` 칩을 눌러 엽니다. 작은 화면에서도 지도 전체가 뭉치지 않도록 노드·연결을 화면 넓이에 맞춰 작게 그리고 라벨을 줄입니다. 노드를 고르면 위는 그래프, 아래는 선택한 노드가 되고, 맨 아래 탭으로 개요·데이터·연관 노드·연관도를 바꿉니다. 가운데 손잡이를 끌거나 탭하면 그래프 높이가 세 단계로 바뀝니다. 필터·검색·이날의 러브 라이브!·랜덤 재생·표시 설정(이름 표기, 화면 언어, 테마, 시점 보기)은 그래프 위 상단 바에 있고(이날의 러브 라이브!와 랜덤 재생은 그래프가 보이도록 아래 칸에 열리고, 노드를 고르면 노드 정보로 돌아가며 음악은 계속 재생됩니다), 경로 찾기 중에는 상단 바가 출발·도착 카드로, 아래는 단계 목록으로 바뀝니다. 단계를 탭하면 그래프가 그 노드로 이동하고, 아래 탭을 누르면 노드 정보로 돌아갑니다.
-- **생일**: 오늘(브라우저 시간 기준)이 생일인 인물·캐릭터는 노드에 작은 고깔모자를 씌우고, 툴팁과 상세 패널에 `오늘 생일` 배지를 답니다. 2월 29일생은 평년에 2월 28일에 표시합니다. 개발 서버에서는 `?today=MM-DD`로 날짜를 바꿔 볼 수 있습니다.
-- **이날의 러브 라이브!**: 상단 바의 날짜 버튼을 누르면 아래로 패널이 열리고, 오늘과 같은 월·일에 있었던 일을 분류별로 문장으로 보여줍니다. 분류는 생일, 공연(공연일마다, 회장 포함), 발매물, 곡(처음 발매된 날, 발매 전에 공연에서 먼저 불렸으면 그 공연), 첫 등장(인물·캐릭터·아티스트·프로젝트의 첫 사실 연결 날짜), 캐스팅·멤버(캐스팅 시작, 결성 이후의 합류, 활동 종료)입니다. 패널이 열려 있는 동안 나온 노드를 그래프에 강조하고, 줄에 마우스를 올리면 그 줄의 노드만 강조합니다. 지난 일은 `N주년`, 아직 오지 않은 일은 `예정`으로 표시합니다. ‹ ›로 하루씩 옮기거나, 제목을 눌러 여는 달력에서 월·일을 고를 수 있습니다. 달력에는 그날 볼 일이 있으면 점을 찍고(현재 필터 기준, 많을수록 진하게), 오늘은 테두리로 표시합니다. 필터에서 숨긴 노드는 빠집니다. 날짜는 생일과 같은 브라우저 날짜이고, 2월 29일의 일은 평년에 2월 28일에 보여줍니다.
-- **랜덤 재생**: 대표 음원(없으면 다른 보컬 음원)에 YouTube 링크가 있는 곡을 섞어서 이어 재생합니다. 필터(프로젝트·분위기·BPM·기간)에 맞는 곡에서만 고르고, BGM과 드라마 트랙은 빼며, 재생할 수 없는 영상은 건너뜁니다. 패널에는 YouTube 플레이어, 이전·재생·다음 버튼, 다음 곡이 있고, 곡 이름을 누르면 그래프에서 그 곡을 선택합니다. 패널을 닫아도 계속 재생되고, 상단 바 버튼에 지금 재생 중인 곡이 나옵니다. 곡 개요의 영상과 랜덤 재생은 한 번에 하나만 재생되어, 한쪽을 재생하면 다른 쪽은 일시정지됩니다.
-- **API 문서** (`/api/`): TakasakiInfo API를 Swagger UI로 보여줍니다. 문서는 API가 직접 내주는 `GET /api/v1/openapi.json`을 열 때마다 읽으므로, API를 다시 배포하면 이 사이트를 다시 빌드하지 않아도 바로 반영됩니다. API가 GET에 `Access-Control-Allow-Origin: *`를 주므로 `Try it out`으로 이 페이지에서 바로 호출해 볼 수 있습니다. 정보 창에서도 링크합니다. Swagger UI는 `/api/` 페이지의 번들에만 들어가고 지도 번들에는 들어가지 않습니다.
-- **기타**: 라이트·다크 테마
+<a href="https://takasakiinfo.auroracaelum.com/"><img src="https://takasakiinfo.auroracaelum.com/og/main.png" alt="TakasakiInfo Graph: the whole map, each project in its color" width="720"></a>
 
-## 데이터 흐름
+</div>
 
-```
-TakasakiInfo CDN /data/v1/*.json ──(npm run data)──▶ public/data/
-  projects, persons, characters, artists,              graph.json      노드·엣지·좌표·지표·커뮤니티
-  works, releases, cities, venues, concerts,           detail/<종류>.json  상세 패널 데이터 (필요할 때 로드)
-  tracks, recordings (뷰)                               days.json       날짜별 사건 (이날의 러브 라이브!)
-                                                       meta.json       데이터 버전
-public/data/ ──(npm run og)──▶ public/n/<종류>/<id>/index.html, og.png   노드 공유 페이지와 카드
-                               public/og/main.png, api.png                메인·API 문서 카드
-```
+> [!NOTE]
+> The data is the [TakasakiInfo](https://github.com/AuroraCaelum/TakasakiInfo) database. The site checks it every day and rebuilds when it has changed, so the map is never more than a day behind.
 
-- 입력은 v1 파일 형식 `1.x`입니다. 다른 메이저 버전이면 빌드가 실패합니다.
-- 참조가 깨진 경우(없는 ID)는 경고를 내고 그 연결만 건너뜁니다. 경고도 실패로 처리하려면 `--strict`를 붙입니다.
-- 메인 URL 대체(D2) 같은 링크 규칙은 v1의 `tracks.json`·`recordings.json` 결과를 그대로 씁니다.
+> [!IMPORTANT]
+> The database is still being filled in, and the map shows its gaps as they are:
+> - The group artists of Aqours, Liella! and Nijigasaki have no lineups yet, so their member links, and the co-singing that comes from group songs, are missing.
+> - Length, key and tempo are known for about 580 songs. Original soundtrack cues have a length only, and no song has a time signature yet.
+> - Concerts whose setlists name no singers (5 so far) have no performer links.
 
-### 그래프 모델
+## About
 
-노드는 프로젝트, 아티스트, 캐릭터, 인물, 곡(Work), 발매물, 공연, 회장, 도시입니다. 음원(Recording)은 곡 노드에 합치고, 에디션·트랙은 상세 패널에서 보여줍니다.
+- Every entity of the database is a node: projects, artists, characters, people, songs, releases, concerts, venues and cities, about 3,800 in all. Every relation is a link: credits, singing, lineups, casting, tracks, setlists and venues, about 22,000.
+- The layout is computed when the site is built, so the same map opens at once on every visit.
+- Pick a node to read everything the database knows about it, with sources: names in every language, credits, recordings, editions, setlists, and how central it is.
+- It is a static site on GitHub Pages; the data comes from the TakasakiInfo CDN.
 
-- **BGM**(애니메이션 劇伴, `kind: bgm`, D50)은 곡 노드의 한 종류입니다. 아이콘이 따로 있고 필터에서 따로 끌 수 있습니다. 데이터베이스에 음원이 없어서 작곡과 공연곡으로만 이어집니다.
-- **외부 작품**(`project: external`: 이차원 페스의 아이돌마스터 곡, 커버곡, 初音ミク 같은 외부 IP 캐릭터)은 프로젝트 허브로 묶지 않습니다. 노드에 `외부 작품` 표시를 달고, 회장·인물처럼 이어진 노드(공연, 발매물, 곡)의 프로젝트를 따릅니다.
-- 온라인 전용 회차는 도시·회장이 없습니다(D47).
-- 공연 출연진(`cast`, D52)과 라이브 음원의 녹음 공연(`live`, D54)은 상세 패널에만 보여주고 연결로 만들지 않습니다. `출연` 연결은 계속 세트리스트에서 노래한 사람만 셉니다.
+## Features
 
-**사실 연결**은 데이터의 관계 행에서만 만듭니다.
+### Explore
 
-| 관계 | 방향 | 강도(w) |
-| --- | --- | --- |
-| 작사 · 작곡 | 인물·캐릭터(D27) → 곡 | 1 (`credits_override` 포함) |
-| 편곡 · 현편곡 · 관편곡 · 가창 | 인물·캐릭터·아티스트 → 곡 | 해당 음원 수 (Off Vocal·인스트 제외, 최소 1) |
-| 멤버 | 캐릭터 → 아티스트 | 1, 라인업 기간 (이어지는 기간은 합침) |
-| CV | 캐릭터 → 인물 | 1, 캐스팅 기간 |
-| 수록 | 곡 → 발매물 | 그 발매물에 실린 음원 수 (에디션 합산) |
-| 발매 아티스트 | 아티스트·캐릭터·인물 → 발매물 | 1 (`artist_credit`) |
-| 공연곡 | 곡 → 공연 | 공연한 날 수 |
-| 출연 | 아티스트·캐릭터·인물 → 공연 | 세트리스트에서 노래한 공연 날 수 (객원·공동 명의 포함) |
-| 회장 | 공연 → 회장 | 그 회장에서 공연한 날 수 |
-| 소재지 | 회장 → 도시 | 1 |
-| 소속 | 노드 → 프로젝트 | 1 (외부 작품은 없음) |
+- **Map**: drawn with WebGL. Color nodes by type, project or community (Louvain).
+- **Node panel**: four tabs.
+  - **Overview**: the song's video, its names in every script, aliases, birthday, first appearance, length, key, tempo and mood, projects, links (official, YouTube Music, Fandom), and the evidence for each value.
+  - **Data**: what the type has. Songs: credits, recordings, releases and every show they were sung at. Releases: editions and track lists. Concerts: cast, setlists by day, live recordings. Cities: venues and concerts.
+  - **Links**: every relation in the data, with its strength, period and evidence.
+  - **Relatedness**: centrality (degree, strength, PageRank, betweenness), indirect relatedness (personalized PageRank), similar nodes (Jaccard, Adamic–Adar) and community.
+- **Search** (`/`): Japanese, kana, romaji, Korean and aliases. Partial matches; katakana and hiragana, full and half width and spaces don't matter; a typo or two in romaji is forgiven.
+- **Filters**: projects, node types (drama tracks are off at first and original soundtrack cues can be turned off), song mood and BPM, link types, derived links, unlinked nodes.
+- **Focus**: keep only the neighbours of a node, 1 to 3 steps out, and lay them out again. Or double-click the node.
+- **Path**: the shortest path between two nodes over the links on screen, stronger links first, around the project hubs.
+- **Timeline**: only the songs and releases out by a date, with that day's lineups and casting. It can play.
 
-**파생 연결**은 규칙으로 계산하며, 화면에서 곡선과 다른 색으로 사실 연결과 구분합니다. 근거가 된 노드 목록(`via`)을 함께 저장합니다.
+### Listen and look back
 
-| 관계 | 규칙 | 강도 |
-| --- | --- | --- |
-| 공동 크레딧 | 같은 곡에 작사·작곡·편곡(현·관 포함)으로 함께 크레딧된 인물 쌍 | 곡 수 |
-| 공동 가창 | 같은 곡을 함께 부른 캐릭터 쌍. 아티스트는 그 음원의 첫 발매일 라인업으로 펼치고, 배역으로 부른 인물(D29)은 배역 캐릭터로 셉니다 | 곡 수 |
-| 공유 멤버 | 라인업에 같은 캐릭터가 있는 아티스트 쌍 | 겹치는 캐릭터 수 |
+- **Shuffle**: plays songs that have a YouTube recording, one after another, from what the filters let through. It keeps playing with the panel closed.
+- **On this day in Love Live!**: what happened on today's month and day, in sentences: birthdays, concerts, releases, first appearances, castings and lineup changes, with the anniversary. Pick any day from the calendar.
+- **Birthdays**: people and characters whose birthday is today wear a small party hat on the map.
 
-**날짜** (기간 슬라이더용):
+### Share
 
-- 곡은 첫 발매일과 첫 공연일 중 이른 날이고, 발매물은 발매일, 공연은 첫 공연일입니다.
-- 나머지 노드(도시 포함)는 첫 사실 연결의 날짜입니다. 그래도 날짜가 없으면 날짜 있는 이웃 중 가장 이른 날을 물려받습니다. 예를 들어 곡이 유닛 이름으로만 크레딧된 캐릭터는 유닛의 날짜를, 그 캐릭터의 CV는 캐릭터의 날짜를 받습니다.
-- 여러 프로젝트에 속한 아티스트의 소속 연결은 그 프로젝트의 곡·발매물·공연·멤버와 처음 이어진 날짜를 씁니다.
+- **Links**: the node, tab, filters and date are in the URL ([parameters](#url-parameters)).
+- **Link previews**: a link pasted into KakaoTalk, Discord, X or Slack shows a card of the node: its type, its names, a few facts, and where it is on the map.
 
-**지표**: PageRank, 매개 중심성, 연결 수, Louvain 커뮤니티를 계산합니다. 계산에 쓰는 그래프에서는 프로젝트 소속과 파생 연결을 뺍니다. 모든 노드가 프로젝트 허브를 거쳐 두 단계 안에 이어지기 때문입니다. 브라우저에서 계산하는 간접 연관·유사 노드·경로도 같은 그래프를 씁니다.
+<details>
+<summary>How the previews work</summary>
 
-## 개발
+<br>
 
-Node.js 22 이상이 필요합니다.
+Preview crawlers don't run JavaScript, and GitHub Pages sends the same `index.html` for every `?n=` link. So the build writes a share page for every node at `/n/<type>/<id>/`, with the node's Open Graph tags and a 1200×630 card (`og.png`), and the page sends people on to the map with the rest of its query. **Copy link** copies that page.
+
+- **Node cards**: on the right, the whole map in faint gray, moved so the node always sits in the same place, with its own links and neighbours in their type colors. On the left, the type, the Japanese name large with the Korean and romanized names under it, facts (a song's artist, date, length/key/BPM; a tour's dates and venues; a character's CV, units and birthday), and the projects. Every label is in Japanese · Korean · English. Counts go into the preview text.
+- **The map** (`/`) and **the API reference** (`/api/`) have cards of their own: the whole map with each project in its color, and the most central node of each type with its links.
+- Path links preview as their start node.
+- The image URL carries a hash of the card (`og.png?v=…`), so services that cache by URL pick up a changed card. KakaoTalk keeps its own cache; clear it with the [Kakao sharing debugger](https://developers.kakao.com/tool/debugger/sharing).
+
+</details>
+
+### And
+
+- **Phones**: a layout of its own under 820 px wide: the map takes the screen until a node is picked, then shares it with the node's panel.
+- **Languages and themes**: the interface in Korean, English or Japanese; names in Japanese, romaji or Korean, chosen apart. Light and dark.
+- **Report a mistake**: the button at the bottom of a node's panel opens a new issue on [TakasakiInfo](https://github.com/AuroraCaelum/TakasakiInfo/issues) with the node, the tab and the data version filled in.
+- **API reference** ([`/api/`](https://takasakiinfo.auroracaelum.com/api/)): Swagger UI over the TakasakiInfo API, read from the API's own `openapi.json` on every visit. **Try it out** calls the API from the page.
+
+<a id="url-parameters"></a>
+
+<details>
+<summary><b>URL parameters</b></summary>
+
+<br>
+
+| Parameter | Meaning | Example |
+| :-- | :-- | :-- |
+| `n` | the selected node | `n=work:nijigasaki/dive` |
+| `tab` | the panel tab (`data`, `neighbors`, `related`) | `tab=related` |
+| `focus` | focus depth, 1 to 3 | `focus=2` |
+| `path`, `hubs` | path target, and whether it may go through hubs | `path=character:liella/kanon-shibuya` |
+| `ui`, `names` | interface language (`ko`, `en`, `ja`), names (`ja`, `rom`, `ko`) | `ui=ja` |
+| `color` | color by (`project`, `community`) | `color=community` |
+| `p` | projects shown | `p=nijigasaki,aqours` |
+| `t`, `r` | node and link types changed from the defaults (`-` turns off) | `r=-project,co_credit` |
+| `drama`, `bgm`, `isolated` | drama tracks on, soundtrack cues off, unlinked nodes shown | `drama=1`, `bgm=0` |
+| `mood` | song mood (`upbeat`, `slow`, `bright`, `wistful`) | `mood=upbeat,bright` |
+| `bpm` | song tempo range (either end may be left open) | `bpm=120-160`, `bpm=140-` |
+| `at` | timeline date | `at=2023-04-01` |
+
+</details>
+
+## Graph model
+
+Nodes are projects, artists, characters, people, songs (works), releases, concerts, venues and cities. Recordings are folded into their song; editions and tracks are in the node panel. The model follows §10.7 of the TakasakiInfo design notes; `D` numbers below are its decisions.
+
+<details>
+<summary><b>Links</b>: fact links and derived links</summary>
+
+<br>
+
+**Fact links** come only from the relations in the data.
+
+| Relation | Direction | Strength (w) |
+| :-- | :-- | :-- |
+| Lyrics · Music | person, character (D27) → song | 1 (`credits_override` included) |
+| Arrangement · Strings · Brass · Vocals | person, character, artist → song | recordings (off vocal and instrumental left out, at least 1) |
+| Member | character → artist | 1, with the lineup periods (joined where they meet) |
+| CV | character → person | 1, with the casting period |
+| Track | song → release | recordings on the release (editions added up) |
+| Release artist | artist, character, person → release | 1 (`artist_credit`) |
+| Setlist | song → concert | days it was performed |
+| Performer | artist, character, person → concert | days they sang on the setlist (guests and joint credits included) |
+| Venue | concert → venue | days performed there |
+| City | venue → city | 1 |
+| Project | node → project | 1 (none for works outside the series) |
+
+**Derived links** are worked out by rule, drawn curved and in another color, and keep the nodes they came from (`via`).
+
+| Relation | Rule | Strength |
+| :-- | :-- | :-- |
+| Co-credit | people credited together on a song for lyrics, music or arrangement | songs |
+| Co-singing | characters who sang a song together; an artist counts as its lineup on the recording's first release, a person singing in role (D29) as the character | songs |
+| Shared member | artists whose lineups share a character | characters |
+
+</details>
+
+<details>
+<summary><b>Nodes</b>: soundtrack cues, works outside the series, dates and metrics</summary>
+
+<br>
+
+- **Original soundtrack cues** (`kind: bgm`, D50) are songs with an icon of their own and a filter of their own. The database has no recordings of them, so they link only through their composer and setlists.
+- **Works outside the series** (`project: external`: THE IDOLM@STER songs at the crossover festival, covers, characters of other franchises such as Hatsune Miku) have no project hub. They are marked as such and take the projects of the concerts, releases and songs they are linked to.
+- Online-only shows have no city or venue (D47).
+- A concert's cast (`cast`, D52) and where a live recording was made (`live`, D54) are shown in the panel, not as links: performer links count only those who sang on the setlist.
+- **Dates** (for the timeline): a song's is its first release or first performance, whichever is earlier; a release's its release date; a concert's its first show. The other nodes take the date of their first fact link, or else the earliest dated neighbour's. An artist's link to each of its projects is dated by its first song, release, concert or member there.
+- **Metrics**: PageRank, betweenness, degree and Louvain communities, on the graph without project links and derived links (everything is two steps apart through a project hub). Relatedness, similar nodes and paths in the browser use the same graph.
+
+</details>
+
+## Colors and accessibility
+
+- **Node types** take a validated categorical palette, light and dark. On a node-link map any two nodes may sit side by side, and only three colors stay distinct for every reader there, so the three most common types (songs, people, releases: about 90% of nodes) have them.
+- So color is never the only cue: every node carries its type's icon (soundtrack cues one of their own), tooltips and panels name the type, and hovering the legend picks out a type.
+- Eight categorical colors, violet kept for derived links: cities, the ninth type, are neutral gray and told apart by their icon.
+- **Projects** take their official colors, those of the "Official SNS" labels on [lovelive-anime.jp](https://www.lovelive-anime.jp/) (`src/theme.ts`); the dark theme lightens the few below 3:1 on its background. Colors are tied to ids, so filtering never repaints.
+- **A-RISE, Saint Snow and Sunny Passion** keep their own official colors inside their projects: the group, its members, and the songs and releases credited to them alone (`COLOR_GROUPS` in `shared/graph.ts`, `g` on the node). The legend lists each under its project.
+- **The Love Live! Series** project and everything else (several projects, none, a project without a color) share one color. The series' own pink (#E4007F) can't be told from μ's (#E50080), so it is greyed toward rose (#B06680).
+
+## Development
+
+Node.js 22 or later.
 
 ```sh
 npm ci
-npm run data          # CDN에서 v1을 받아 public/data/ 생성 (약 15초)
+npm run data          # the v1 files from the CDN into public/data/ (about 40 s)
 npm run dev           # http://localhost:5173
-npm test              # 빌더와 클라이언트 로직 단위 테스트
-npm run og            # public/data/로 공유 페이지와 카드 생성 (전부 그리면 코어 8개에서 약 3분, 이후는 바뀐 카드만)
-npm run build         # data + og + 타입 검사 + dist/ 번들
+npm test              # unit tests of the builders and the client logic
+npm run og            # share pages and cards from public/data/ (all of them: about 3 min on 8 cores)
+npm run build         # data + og + typecheck + the bundle in dist/
 ```
 
-`npm run og`는 카드를 satori(레이아웃)와 resvg(래스터화)로 그립니다. 폰트는 처음 실행할 때 `.cache/fonts/`에 받습니다. 한·일·영은 Pretendard JP 한 벌로 쓰고, 여기에 없는 글자(간체자 회장명, 이모지, 반각 가나)는 Noto Sans SC·Noto Sans Symbols 2·Noto Emoji로 채웁니다. 파일은 해시로 고정되어 있고, 어떤 폰트에도 없는 글자가 나오면 경고를 냅니다. 그린 카드는 내용 해시로 `.cache/og/`에 남겨 두어, 다시 빌드할 때는 내용이 바뀐 카드만 그립니다. 다만 모든 노드 카드 뒤에 지도가 있어서, 데이터 갱신으로 레이아웃이 바뀌면 카드를 전부 다시 그립니다. 그래서 그리기는 코어마다 워커 하나씩 나눠 맡깁니다(`scripts/lib/og-worker.ts`). `public/`의 카드는 캐시 파일의 하드 링크입니다. 배포 워크플로는 `.cache`를 Actions 캐시로 이어 씁니다. 카드는 지도 점 때문에 무손실로는 커서 128색 PNG로 저장합니다. 노드당 60KB 안팎이고, 전부 합치면 약 230MB입니다.
-
-사이트 주소(`https://takasakiinfo.auroracaelum.com/`)는 `shared/share.ts`의 `SITE_URL`과 `index.html`·`api/index.html`의 OG 태그에 있습니다. OG 주소는 절대 주소여야 하므로, 도메인을 바꾸면 이 세 곳을 함께 고칩니다(테스트가 서로 맞는지 확인합니다).
-
-로컬에서 만든 v1으로 빌드하려면 다음처럼 합니다. `takasaki dist`의 출력 디렉터리를 가리키면 됩니다.
+To build from a v1 you made yourself, point at the output of `takasaki dist`:
 
 ```sh
 npm run data -- --src ../TakasakiInfo/dist/v1
-# 또는: TAKASAKI_V1=../TakasakiInfo/dist/v1 npm run build
+# or: TAKASAKI_V1=../TakasakiInfo/dist/v1 npm run build
 ```
 
-`public/data/`, `public/n/`, `public/og/`, `.cache/`는 생성물이라 커밋하지 않습니다.
+`public/data/`, `public/n/`, `public/og/` and `.cache/` are generated and not committed.
 
-### 스택
+<details>
+<summary><b>Data flow</b></summary>
 
-| 영역 | 사용 |
-| --- | --- |
-| 빌드 | Vite 7, TypeScript 5.9 |
-| UI | React 19, zustand |
-| 그래프 렌더링 | Sigma.js 3 (WebGL), @sigma/node-image(종류 아이콘), @sigma/edge-curve(파생 연결) |
-| 그래프 계산 | graphology, ForceAtlas2, graphology-metrics, Louvain (빌드 시) |
-| 테스트 | Vitest |
+<br>
 
-## 배포 (GitHub Pages)
+```
+TakasakiInfo CDN /data/v1/*.json ──(npm run data)──▶ public/data/
+  projects, persons, characters, artists,              graph.json           nodes, links, layout, metrics, communities
+  works, releases, cities, venues, concerts,           detail/<type>.json   what the node panel shows (loaded when needed)
+  tracks, recordings (views)                           days.json            events by day (On this day)
+                                                       meta.json            data version
+public/data/ ──(npm run og)──▶ public/n/<type>/<id>/index.html, og.png      share pages and cards
+                               public/og/main.png, api.png                  the map's and the API reference's cards
+```
 
-1. GitHub에 저장소를 만들고 push합니다.
-2. 저장소 **Settings → Pages → Build and deployment → Source**를 **GitHub Actions**로 바꿉니다.
-3. `main`에 push하면 `.github/workflows/deploy.yml`이 테스트, 데이터 빌드, 번들, 배포를 차례로 실행합니다.
+- The input is v1 format `1.x`; another major version fails the build.
+- A broken reference (an id that doesn't exist) is a warning and its link is skipped; `--strict` makes warnings fail.
+- Link rules such as main-URL fallback (D2) are taken as they are from v1's `tracks.json` and `recordings.json`.
 
-데이터 갱신은 다음과 같이 반영됩니다.
+</details>
 
-- **매일 06:17 KST**에 CDN의 `version.json`과 배포된 사이트의 `data/meta.json`을 비교합니다. 데이터가 바뀌었을 때만 다시 빌드합니다.
-- TakasakiInfo 배포 직후 바로 반영하려면, TakasakiInfo 쪽에서 `repository_dispatch`를 보내면 됩니다. 이 저장소에 `contents: write` 권한이 있는 토큰이 필요합니다.
+<details>
+<summary><b>Link preview cards</b>: fonts, cache, size</summary>
+
+<br>
+
+- satori lays the cards out and resvg draws them. Pretendard JP covers Japanese, Korean and Latin; Noto Sans SC, Noto Sans Symbols 2 and Noto Emoji fill in the rest (simplified Chinese venue names, emoji, half-width kana). The fonts are downloaded into `.cache/fonts/` on the first run, pinned by hash; a character no font has is reported.
+- Cards are kept in `.cache/og/` by a hash of their content, so a rebuild draws only the cards that changed, on a worker per core (`scripts/lib/og-worker.ts`). The map is behind every node card, so a data update that moves the layout redraws them all. The deploy workflow keeps `.cache` across runs; the files in `public/` are hard links into it.
+- The map's dots make lossless cards large, so they are 128-color PNGs: about 60 KB each, about 230 MB in all.
+- The site's address (`https://takasakiinfo.auroracaelum.com/`) is in `SITE_URL` in `shared/share.ts` and in the Open Graph tags of `index.html` and `api/index.html`. Preview URLs must be absolute, so change the three together; a test checks that they agree.
+
+</details>
+
+<details>
+<summary><b>Stack</b></summary>
+
+<br>
+
+| | |
+| :-- | :-- |
+| Build | Vite 7, TypeScript 5.9 |
+| Interface | React 19, zustand |
+| Map | Sigma.js 3 (WebGL), @sigma/node-image (type icons), @sigma/edge-curve (derived links) |
+| Graph | graphology, ForceAtlas2, graphology-metrics, Louvain (at build time) |
+| Preview cards | satori, resvg |
+| Tests | Vitest |
+
+</details>
+
+## Deployment
+
+The site is deployed to GitHub Pages by `.github/workflows/deploy.yml` (Settings → Pages → Source: **GitHub Actions**): tests, data, cards, bundle, deploy.
+
+- A push to `main` always deploys.
+- Every day at 06:17 KST the workflow compares the CDN's `version.json` with the live site's `data/meta.json`, and rebuilds only when the data has changed.
+- TakasakiInfo can trigger a run right after its own deploy, with a token that has `contents: write` on this repository:
 
   ```sh
   gh api repos/<owner>/<this-repo>/dispatches -f event_type=takasaki-data-updated
   ```
 
-에셋과 데이터 경로가 모두 상대 경로(`base: "./"`)라서, 어떤 하위 경로에 올려도 동작합니다.
+Assets and data are loaded by relative paths (`base: "./"`), so the site works under any subpath.
 
-## URL 매개변수
+## Feedback
 
-| 매개변수 | 뜻 | 예 |
-| --- | --- | --- |
-| `n` | 선택한 노드 | `n=work:nijigasaki/dive` |
-| `tab` | 상세 탭 (`data`, `neighbors`, `related`) | `tab=related` |
-| `focus` | 중심 보기 깊이 1~3 | `focus=2` |
-| `path`, `hubs` | 경로 찾기 도착 노드, 허브 경유 허용 | `path=character:liella/kanon-shibuya` |
-| `ui`, `names` | 화면 언어 (`ko`·`en`·`ja`), 이름 표기 (`ja`·`rom`·`ko`) | `ui=ja` |
-| `color` | 색 기준 (`project`, `community`) | `color=community` |
-| `p` | 보이는 프로젝트 | `p=nijigasaki,aqours` |
-| `t`, `r` | 노드 종류·연결 종류를 기본값에서 바꾼 것 (`-`는 끔) | `r=-project,co_credit` |
-| `drama`, `bgm`, `isolated` | 드라마 트랙 포함, BGM 숨김, 연결 없는 노드 표시 | `drama=1`, `bgm=0` |
-| `mood` | 곡 분위기 (`upbeat`·`slow`·`bright`·`wistful`) | `mood=upbeat,bright` |
-| `bpm` | 곡 BPM 범위 (한쪽만 써도 됨) | `bpm=120-160`, `bpm=140-` |
-| `at` | 기간 슬라이더 날짜 | `at=2023-04-01` |
+A wrong or missing value in the data: the **Report a mistake** button on the node, or an [issue on TakasakiInfo](https://github.com/AuroraCaelum/TakasakiInfo/issues). Something wrong with the map itself: an [issue here](https://github.com/AuroraCaelum/TakasakiInfo-Graph/issues).
 
-## 색과 접근성
+## Disclaimer
 
-- 노드 종류 색은 검증된 범주형 팔레트를 씁니다(라이트·다크 각각). 노드-링크 그림은 어떤 두 노드든 나란히 놓일 수 있습니다. 이 경우 모든 사람이 구분할 수 있는 색은 세 가지뿐이라서, 가장 많은 세 종류(곡·인물·발매물, 노드의 약 90%)에 그 세 색을 줬습니다.
-- 그래서 색만으로 종류를 구분하지 않습니다. 모든 노드에 종류 아이콘을 그리고(BGM은 곡과 다른 아이콘), 툴팁·상세 패널에 종류 이름을 적습니다. 범례에 마우스를 올리면 그 종류만 강조합니다.
-- 범주 색은 여덟 개이고 보라는 파생 연결에 씁니다. 그래서 아홉 번째 종류인 도시는 새 색을 만들지 않고 중립 회색을 쓰며, 아이콘으로 구분합니다.
-- 색은 엔티티에 고정됩니다. 프로젝트 색은 ID별로 정해져 있어서, 필터를 바꿔도 다시 칠해지지 않습니다.
-- 프로젝트 색은 범주형 팔레트가 아니라 공식 색입니다([lovelive-anime.jp](https://www.lovelive-anime.jp/) 프로젝트 목록의 `Official SNS` 글자색, `src/theme.ts`). 다크 테마에서 배경과 대비가 3:1에 못 미치는 색(뮤지컬 등)만 조금 밝혀 씁니다.
-- A-RISE·Saint Snow·Sunny Passion은 속한 프로젝트와 따로 자기 공식 색을 씁니다. 그룹 자신, 멤버 캐릭터, 그 그룹(과 멤버)만 크레딧된 곡·발매물이 그 색이고(`shared/graph.ts`의 `COLOR_GROUPS`, 노드의 `g`), 범례에서는 프로젝트 바로 아래에 나옵니다.
-- 러브라이브! 시리즈 프로젝트와 그 밖의 노드(여러 프로젝트, 프로젝트 없음, 색이 정해지지 않은 프로젝트)는 공통 색을 씁니다. 공식 공통 색(#E4007F)은 μ's 색(#E50080)과 눈으로 구분되지 않아서, 채도를 낮춘 로즈(#B06680)로 바꿔 씁니다.
+All rights to the material, including songs and lyrics, belong to
 
-## 현재 데이터에서 알아둘 점
+> ©2013 PROJECT Lovelive!<br>
+> ©2017 PROJECT Lovelive! Sunshine!!<br>
+> ©PROJECT YOHANE<br>
+> ©2022 PROJECT Lovelive! Nijigasaki High School Idol Club<br>
+> ©PROJECT Lovelive! Nijiyon Animation 2<br>
+> ©2024 PROJECT Lovelive! Superstar!!<br>
+> ©2026 PROJECT Lovelive! Hasunosora Jogakuin School Idol Club<br>
+> ©PROJECT Lovelive! School Idol Musical<br>
+> ©PROJECT IKIZULIVE!
 
-데이터베이스가 채워지는 중이라, 다음은 그래프에 그대로 드러납니다.
-
-- Aqours·Liella!·니지가사키 그룹 아티스트에는 라인업이 아직 없어서, 그 그룹의 멤버 연결과 그룹 곡에서 나오는 공동 가창이 없습니다.
-- 키·BPM은 대표 음원 기준으로 곡 약 580곡에만 있습니다. BGM은 가창자가 없어 분석값을 찾지 못해 길이만 있고, 박자(`time_signature`)는 아직 출처가 없어 비어 있습니다(값이 생기면 그대로 표시합니다).
-- 출연 연결은 세트리스트에 가창자가 적힌 곡에서만 나옵니다. 가창자가 없는 세트리스트만 있는 공연(현재 5개)은 출연 연결이 없습니다.
-
-데이터가 채워지면 다음 빌드에서 자동으로 반영됩니다.
+and their rights holders SUNRISE, Bandai Namco Filmworks Inc., Lantis, and Bushiroad.
